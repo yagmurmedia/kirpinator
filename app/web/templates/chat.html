@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Sohbet — Kirpinator{% endblock %}
+{% block content %}
+<h1>Sohbet</h1>
+<p class="hint">
+  Bir video adı/parçası ve ne yapmasını istediğini yaz — ör: "diş çekimi videosunu
+  efektli ve alt yazılı hazırla, müzik olmasın". Bulup senin istediğin gibi
+  işleyecek, hazır olunca bildirim gelecek.
+</p>
+
+<form action="/chat" method="post" class="chat-form">
+  <textarea name="message" rows="3" placeholder="Örn: barbie videosunu komik şekilde hazırla, alt yazı ekle" required autofocus></textarea>
+  <button type="submit">Gönder</button>
+</form>
+
+<div class="chat-history">
+  {% for h in history %}
+  <div class="chat-bubble">
+    <div class="chat-msg">{{ h.message }}</div>
+    <div class="chat-reply status-{{ h.status }}">
+      {{ h.reply }}
+      {% if h.video_id %}
+      <a href="/video/{{ h.video_id }}">→ videoyu aç</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p class="empty">Henüz sohbet geçmişi yok.</p>
+  {% endfor %}
+</div>
+{% endblock %}

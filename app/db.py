@@ -52,6 +52,16 @@ CREATE TABLE IF NOT EXISTS kv_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    message TEXT NOT NULL,
+    video_query TEXT,
+    video_id TEXT,
+    status TEXT NOT NULL,
+    reply TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
 """
 
 # Valid status values, in the order a video normally moves through them.
@@ -203,3 +213,25 @@ def kv_set(key: str, value: str) -> None:
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             (key, value),
         )
+
+
+def create_chat_message(
+    *, message: str, video_query: str | None, video_id: str | None, status: str, reply: str
+) -> dict[str, Any]:
+    row_id = new_id()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO chat_messages (id, message, video_query, video_id, status, reply, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (row_id, message, video_query, video_id, status, reply, time.time()),
+        )
+    return {"id": row_id, "message": message, "video_query": video_query, "video_id": video_id,
+            "status": status, "reply": reply, "created_at": time.time()}
+
+
+def list_chat_messages(limit: int = 30) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM chat_messages ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]

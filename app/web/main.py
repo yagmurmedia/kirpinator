@@ -1,17 +1,27 @@
 """Local web UI (FastAPI + Jinja2) — dashboard, per-video controls, settings,
-and the human "Approve & Upload" gate. Runs on localhost only.
+and the human "Approve & Upload" gate.
+
+Reachable either on localhost or, if WEB_HOST is set to a Tailscale IP, from
+any device on your own Tailscale network (see README). Because the latter
+means more than "only this PC" can reach it, HTTP Basic Auth is enforced
+whenever WEB_AUTH_PASSWORD is set — this app can approve YouTube uploads and
+show private family video, so it should never sit open on a network with
+untrusted devices on it.
 """
 from __future__ import annotations
 
+import base64
 import logging
+import secrets
 import shutil
 import threading
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import db, settings_store
 from app.config import INCOMING_DIR, settings
@@ -24,6 +34,31 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Kirpinator")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+
+
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not settings.web_auth_password:
+            return await call_next(request)
+
+        challenge = Response(status_code=401, headers={"WWW-Authenticate": "Basic realm=Kirpinator"})
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Basic "):
+            return challenge
+        try:
+            decoded = base64.b64decode(auth_header[len("Basic "):]).decode("utf-8")
+            username, _, password = decoded.partition(":")
+        except Exception:
+            return challenge
+        valid = secrets.compare_digest(username, settings.web_auth_username) and secrets.compare_digest(
+            password, settings.web_auth_password
+        )
+        if not valid:
+            return challenge
+        return await call_next(request)
+
+
+app.add_middleware(BasicAuthMiddleware)
 
 
 @app.on_event("startup")
@@ -159,6 +194,72 @@ def save_settings(
         }
     )
     return RedirectResponse("/settings", status_code=303)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+def chat_page(request: Request):
+    history = db.list_chat_messages()
+    return templates.TemplateResponse("chat.html", {"request": request, "history": history})
+
+
+@app.post("/chat")
+def chat_submit(message: str = Form(...)):
+    message = message.strip()
+    if not message:
+        return RedirectResponse("/chat", status_code=303)
+
+    # Everything here — the LLM call (can take 20-60s cold) and the Drive
+    # lookup/download — runs in the background so the phone gets an instant
+    # response instead of a request that hangs long enough to time out on a
+    # mobile connection. The chat log fills in once it's actually done.
+    def _run():
+        from app.drive.client import find_video_by_name
+        from app.pipeline.llm_instructions import parse_chat_message
+
+        parsed = parse_chat_message(message)
+
+        try:
+            video = find_video_by_name(parsed.video_query)
+        except Exception:
+            logger.exception("Chat video lookup failed for query %r", parsed.video_query)
+            video = None
+
+        if not video:
+            db.create_chat_message(
+                message=message, video_query=parsed.video_query, video_id=None,
+                status="not_found",
+                reply=f'"{parsed.video_query}" ile eşleşen bir video bulamadım. '
+                      "Drive klasöründe olduğundan ve ismi (ya da içeriği, "
+                      "daha önce işlendiyse) yakın olduğundan emin ol.",
+            )
+            return
+
+        toggles = dict(video.get("toggles") or {})
+        toggles.update(parsed.toggles)
+        toggles["custom_instructions"] = message
+        if parsed.made_for_kids is not None:
+            toggles["made_for_kids"] = parsed.made_for_kids
+
+        db.update_video(video["id"], toggles=toggles, custom_instructions=message)
+        db.set_status(video["id"], "queued")
+        db.log_event(video["id"], "chat", f"Sohbetten kuyruğa alındı: {message[:200]}")
+
+        db.create_chat_message(
+            message=message, video_query=parsed.video_query, video_id=video["id"],
+            status="queued",
+            reply=f'"{video["source_filename"]}" bulundu ve talimatlarınla işleme alındı. '
+                  "Hazır olduğunda bildirim gelecek.",
+        )
+
+    threading.Thread(target=_run, daemon=True).start()
+
+    db.create_chat_message(
+        message=message, video_query="", video_id=None,
+        status="processing",
+        reply="Mesajın alındı, anlaşılıyor... Birkaç saniye içinde bu sayfayı "
+              "yenileyip sonucu görebilirsin.",
+    )
+    return RedirectResponse("/chat", status_code=303)
 
 
 @app.post("/upload_manual")

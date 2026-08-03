@@ -1,6 +1,7 @@
 """Polls a Google Drive folder for new source videos and downloads them locally."""
 from __future__ import annotations
 
+import difflib
 import io
 import logging
 
@@ -73,6 +74,63 @@ def poll_and_queue_new_videos() -> list[dict]:
             db.set_status(row["id"], "failed", error=str(exc))
 
     return new_rows
+
+
+def find_video_by_name(query: str) -> dict | None:
+    """Finds a video by (partial, fuzzy) name match. Phone camera filenames
+    are usually just timestamps ("20260724_213117.mp4"), so a query like
+    "diş çekimi" can only match a video's *filename* if it was renamed in
+    Drive — for already-processed videos, this also matches against the
+    generated title/description, which is usually the more useful signal.
+    Checks already-known videos first, then searches the live Drive folder
+    for a brand-new match and downloads it if found. Returns the DB row, or
+    None if nothing matches anywhere.
+    """
+    query_norm = query.strip().lower()
+    if not query_norm:
+        return None
+
+    known = db.list_videos()
+
+    def _haystacks(v: dict) -> list[str]:
+        return [v["source_filename"], v.get("title") or "", v.get("description") or ""]
+
+    substring_matches = [v for v in known if any(query_norm in h.lower() for h in _haystacks(v))]
+    if substring_matches:
+        return substring_matches[0]
+
+    close = difflib.get_close_matches(
+        query_norm, [v["source_filename"].lower() for v in known], n=1, cutoff=0.6
+    )
+    if close:
+        return next(v for v in known if v["source_filename"].lower() == close[0])
+
+    if not settings.drive_folder_id:
+        return None
+
+    service = _drive_service()
+    drive_query = (
+        f"'{settings.drive_folder_id}' in parents and trashed = false "
+        f"and name contains '{query_norm}'"
+    )
+    resp = service.files().list(q=drive_query, fields=LIST_FIELDS, pageSize=10).execute()
+    candidates = [f for f in resp.get("files", []) if f.get("mimeType", "").startswith(VIDEO_MIME_PREFIXES)]
+    if not candidates:
+        return None
+
+    f = candidates[0]
+    existing = db.get_video_by_drive_id(f["id"])
+    if existing:
+        return existing
+
+    row = db.create_video(
+        drive_file_id=f["id"],
+        source_filename=f["name"],
+        toggles=settings_store.default_toggles_for_new_video(),
+    )
+    logger.info("Found video by name search: %s (%s)", f["name"], f["id"])
+    download_video(row["id"], row["drive_file_id"], row["source_filename"])
+    return db.get_video(row["id"])
 
 
 def download_video(video_id: str, drive_file_id: str, filename: str) -> str:

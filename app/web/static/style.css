@@ -59,3 +59,24 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px; }
 .error { color: var(--bad); }
 .success { color: var(--good); }
 .empty { color: var(--muted); }
+
+.hint { color: var(--muted); font-size: 0.9em; max-width: 60ch; }
+.chat-form { display: flex; flex-direction: column; gap: 10px; max-width: 560px; margin: 16px 0 28px; }
+.chat-form textarea { padding: 12px; font-size: 1em; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 8px; resize: vertical; }
+.chat-form button { padding: 12px 20px; border-radius: 8px; border: none; background: var(--accent); color: #04202b; font-weight: 700; font-size: 1em; cursor: pointer; }
+.chat-history { display: flex; flex-direction: column-reverse; gap: 14px; max-width: 560px; }
+.chat-bubble { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.chat-msg { font-weight: 600; margin-bottom: 6px; }
+.chat-reply { color: var(--muted); font-size: 0.92em; }
+.chat-reply.status-not_found { color: var(--bad); }
+.chat-reply.status-queued { color: var(--good); }
+.chat-reply a { display: inline-block; margin-top: 4px; }
+
+/* Mobile: stack the detail page, shrink paddings, keep nav from wrapping oddly */
+@media (max-width: 720px) {
+  main { padding: 14px; }
+  .topbar { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  .topbar nav a { margin-left: 0; margin-right: 14px; }
+  .detail-grid { grid-template-columns: 1fr; gap: 20px; }
+  .video-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}

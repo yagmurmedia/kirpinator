@@ -66,6 +66,22 @@ class Settings(BaseSettings):
     # --- Web UI ---
     web_host: str = "127.0.0.1"
     web_port: int = 8765
+    web_auth_username: str = "yagmur"
+    web_auth_password: str = ""  # empty = auth disabled; set to require a login
+
+    # --- Push notifications (ntfy.sh — free, no account needed) ---
+    # Empty = disabled. Set to a random, hard-to-guess topic name; anyone who
+    # knows the exact topic can read your notifications, so treat it like a
+    # password. Subscribe to the same topic in the ntfy phone app.
+    ntfy_topic: str = ""
+    ntfy_server: str = "https://ntfy.sh"
+
+    # --- Local LLM (Ollama — free, runs on this PC, no API key) ---
+    # Used by the /chat page to turn free-text instructions into toggle
+    # overrides. Falls back to the plain rule-based parser in
+    # app/pipeline/instructions.py if Ollama isn't running.
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:3b-instruct"
 
     # --- Job worker ---
     worker_poll_interval_seconds: int = 10
