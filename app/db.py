@@ -93,6 +93,34 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+    recover_stuck_videos()
+
+
+# Only 'downloading'/'processing' auto-resume as 'queued' — both are safe to
+# redo from scratch (idempotent: re-download overwrites, re-processing
+# overwrites work_dir). 'uploading' is deliberately NOT auto-reset: if the
+# app died right after YouTube actually accepted the upload but before we
+# recorded that, blindly reprocessing and re-approving could publish a
+# duplicate. That case needs a human to check YouTube Studio first, so it's
+# left as-is and simply visible as a stuck video in the dashboard.
+_IN_FLIGHT_STATUSES = ("downloading", "processing")
+
+
+def recover_stuck_videos() -> list[str]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT id FROM videos WHERE status IN ({','.join('?' * len(_IN_FLIGHT_STATUSES))})",
+            _IN_FLIGHT_STATUSES,
+        ).fetchall()
+        ids = [r["id"] for r in rows]
+        if ids:
+            conn.executemany(
+                "UPDATE videos SET status = 'queued', updated_at = ? WHERE id = ?",
+                [(time.time(), vid) for vid in ids],
+            )
+    for vid in ids:
+        log_event(vid, "pipeline", "Resumed after interrupted run (app restart)")
+    return ids
 
 
 def new_id() -> str:
