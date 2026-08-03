@@ -198,6 +198,26 @@ Kanal geneli varsayılan **açık**tır (`.env` içinde `MADE_FOR_KIDS_DEFAULT=t
 ayarlar sayfasından da değiştirilebilir). Her video için ayrıca video detay
 sayfasından "Kanal varsayılanı / Evet / Hayır" olarak geçersiz kılınabilir.
 
+## Depolama alanı
+
+Video işleme her aşamada ara dosya üretir (tonemap, kesim, kırpma, efekt,
+alt yazı, müzik) — birkaç dakikalık 4K bir kaynak, `storage/working/` içinde
+tek başına birkaç GB tutabilir. SSD'de yer darsa, `storage/` klasörünü daha
+büyük bir diske taşıyıp yerine bir **NTFS junction** koymak işe yarar (kod
+hiçbir path değişikliği gerektirmeden şeffaf çalışır):
+
+```powershell
+# Sunucuyu durdurun, sonra:
+robocopy "C:\...\kirpinator\storage" "D:\hedef\storage" /E /MOVE
+Remove-Item "C:\...\kirpinator\storage" -Recurse -Force
+New-Item -ItemType Junction -Path "C:\...\kirpinator\storage" -Target "D:\hedef\storage"
+```
+
+Kod, veritabanı ve `.venv`'i SSD'de bırakıp sadece `storage/`'ı taşımak
+önerilir — küçük ama sık erişilen dosyalar (özellikle SQLite) SSD'nin hız
+avantajından faydalanır, video dosyaları ise büyük ama çoğunlukla sıralı
+(sequential) okuma/yazma olduğu için normal bir HDD'de de sorunsuz çalışır.
+
 ## Test
 
 ```bash
