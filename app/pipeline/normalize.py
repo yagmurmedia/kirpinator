@@ -23,11 +23,17 @@ _TONEMAP_FILTER = (
 
 
 def tonemap_to_sdr(source_path: str, output_path: str) -> str:
+    # This is a throwaway intermediate — every later stage (cut/crop/effects/
+    # captions/music) re-encodes again and crop also downscales to the much
+    # smaller Shorts target resolution, so there's no benefit to encoding this
+    # step at near-lossless quality. crf=16 was producing multi-GB files for
+    # a few minutes of 4K source and once burned through available disk space;
+    # crf=21 is still visually clean for an intermediate and roughly halves it.
     cmd = [
         "ffmpeg", "-y",
         "-i", source_path,
         "-vf", _TONEMAP_FILTER,
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "16",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
         "-c:a", "copy",
         output_path,
     ]

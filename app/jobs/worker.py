@@ -50,8 +50,17 @@ def _process_one_queued() -> bool:
 def _loop() -> None:
     logger.info("Worker started (poll interval=%ss)", settings.worker_poll_interval_seconds)
     while not _stop_event.is_set():
-        _drive_poll_tick()
-        did_work = _process_one_queued()
+        try:
+            _drive_poll_tick()
+            did_work = _process_one_queued()
+        except Exception:
+            # A transient failure here (DB I/O hiccup, unexpected bug, etc.)
+            # must never permanently kill the worker thread — that would
+            # silently stop all future automation until a manual restart,
+            # defeating the whole point of "fully automatic". Log it, back
+            # off a bit, and keep going.
+            logger.exception("Worker loop iteration failed; will retry")
+            did_work = False
         if not did_work:
             _stop_event.wait(settings.worker_poll_interval_seconds)
 
