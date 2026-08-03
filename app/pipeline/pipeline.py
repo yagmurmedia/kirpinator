@@ -8,6 +8,7 @@ approves the upload separately (see app/youtube/upload.py).
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import shutil
 import subprocess
@@ -106,7 +107,7 @@ def process_video(video_id: str) -> None:
 
         # 2. Transcribe (source of truth for sentence-safe cut points)
         segments = transcribe_mod.transcribe(source_path)
-        db.update_video(video_id, transcript=[s.__dict__ for s in segments])
+        db.update_video(video_id, transcript=[dataclasses.asdict(s) for s in segments])
         db.log_event(video_id, "transcribe", f"{len(segments)} segments")
 
         # 3. Silence detection + 4. sentence-safe cut plan

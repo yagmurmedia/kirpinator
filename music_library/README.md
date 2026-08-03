@@ -1,8 +1,18 @@
 # Müzik kütüphanesi
 
 Bu klasör, videolara otomatik eklenecek telif sorunu olmayan müzikleri barındırır.
-Sistem hiçbir müziği "içermez" — lisans temiz olsun diye siz doldurursunuz, sistem
-sadece `index.json`'a göre mod (mood) eşleştirmesi yapıp karıştırır (mixing).
+
+**Şu an 32 parça hazır** (her mod için 8): `scripts/build_music_library.py` ile
+[Incompetech](https://incompetech.com/music/royalty-free/) (Kevin MacLeod)
+katalogundan, korku/karanlık/hüzünlü temalar hariç tutularak, çocuk kanalına
+uygun şekilde otomatik seçilip indirildi. Tamamı **CC BY 4.0** (atıfla serbest
+kullanım) — dosya başına gerekli atıf metni zaten `index.json` içinde
+`attribution` alanında hazır duruyor, sistem bunu kullanmıyor ama video
+açıklamasına eklemek istersen oradan alabilirsin.
+
+Daha fazla/başka parça eklemek istersen `scripts/build_music_library.py`'yi
+tekrar çalıştırabilir (farklı `TARGET_PER_MOOD` ile) ya da aşağıdaki gibi elle
+ekleyebilirsin.
 
 ## Format
 
