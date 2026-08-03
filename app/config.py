@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     feature_face_crop: bool = True
     feature_music: bool = True
     feature_effects: bool = True
+    feature_captions: bool = True
 
     # --- Music ---
     pixabay_api_key: str = ""  # optional — if set, scripts/fetch_pixabay_music.py can pull more royalty-free tracks

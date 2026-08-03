@@ -19,8 +19,8 @@ from app.models import Highlight, TranscriptSegment
 
 SAMPLE_RATE = 16000
 WINDOW_S = 0.25
-PEAK_DB_ABOVE_BASELINE = 10.0
-MIN_GAP_BETWEEN_PEAKS_S = 1.5
+PEAK_DB_ABOVE_BASELINE = 7.0
+MIN_GAP_BETWEEN_PEAKS_S = 1.0
 
 EXCLAMATION_KEYWORDS = [
     "vay", "vay canına", "harika", "süper", "muhteşem", "inanılmaz", "vov", "wov",
@@ -108,4 +108,12 @@ def detect_highlights(video_path: str, segments: list[TranscriptSegment]) -> lis
                 deduped[-1] = h
             continue
         deduped.append(h)
+    return deduped
+
+
+def to_timestamp_tuples(highlights: list[Highlight]) -> list[tuple[float, float]]:
+    """Flattens Highlights into (t, confidence) pairs for segment_planner's
+    highlight-aware range selection.
+    """
+    return [(h.t, h.confidence) for h in highlights]
     return deduped

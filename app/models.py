@@ -78,6 +78,7 @@ class VideoToggles:
     face_crop: bool = True
     music: bool = True
     effects: bool = True
+    captions: bool = True
     made_for_kids: bool | None = None  # None => use channel default
     custom_instructions: str = ""
 
@@ -89,6 +90,7 @@ class VideoToggles:
             face_crop=d.get("face_crop", True),
             music=d.get("music", True),
             effects=d.get("effects", True),
+            captions=d.get("captions", True),
             made_for_kids=d.get("made_for_kids"),
             custom_instructions=d.get("custom_instructions", ""),
         )
@@ -99,6 +101,7 @@ class VideoToggles:
             "face_crop": self.face_crop,
             "music": self.music,
             "effects": self.effects,
+            "captions": self.captions,
             "made_for_kids": self.made_for_kids,
             "custom_instructions": self.custom_instructions,
         }

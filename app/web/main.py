@@ -58,6 +58,7 @@ def update_video(
     face_crop: bool = Form(False),
     music: bool = Form(False),
     effects: bool = Form(False),
+    captions: bool = Form(False),
     made_for_kids: str = Form("default"),
     custom_instructions: str = Form(""),
     reprocess: bool = Form(False),
@@ -68,6 +69,7 @@ def update_video(
         "face_crop": face_crop,
         "music": music,
         "effects": effects,
+        "captions": captions,
         "made_for_kids": made_for_kids_value,
         "custom_instructions": custom_instructions,
     }
@@ -139,6 +141,7 @@ def save_settings(
     feature_face_crop: bool = Form(False),
     feature_music: bool = Form(False),
     feature_effects: bool = Form(False),
+    feature_captions: bool = Form(False),
     youtube_privacy_status: str = Form("public"),
     youtube_category_id: str = Form("24"),
 ):
@@ -150,6 +153,7 @@ def save_settings(
             "feature_face_crop": feature_face_crop,
             "feature_music": feature_music,
             "feature_effects": feature_effects,
+            "feature_captions": feature_captions,
             "youtube_privacy_status": youtube_privacy_status,
             "youtube_category_id": youtube_category_id,
         }

@@ -18,6 +18,7 @@ from app import db
 from app.config import OUTPUT_DIR, THUMBNAIL_DIR, WORKING_DIR, settings
 from app.models import CropKeyframe, VideoToggles
 from app.pipeline import (
+    captions as captions_mod,
     cutter,
     crop_render,
     effects,
@@ -119,7 +120,17 @@ def process_video(video_id: str) -> None:
 
             keep_ranges = [KeepRange(start=0.0, end=info.duration_s, reason="cut_disabled")]
 
-        keep_ranges = segment_planner.trim_to_max_duration(keep_ranges, settings.max_shorts_duration_s)
+        # When the source runs long, pick whichever sentence-safe ranges contain
+        # the most/loudest highlight moments instead of blindly keeping the
+        # earliest ones — this is what makes the resulting Short the most
+        # eventful part of the source rather than just "whatever came first".
+        pre_highlights = highlight_detector.to_timestamp_tuples(
+            highlight_detector.detect_audio_peaks(source_path)
+            + highlight_detector.detect_keyword_highlights(segments)
+        )
+        keep_ranges = segment_planner.select_best_ranges(
+            keep_ranges, pre_highlights, settings.max_shorts_duration_s
+        )
         db.log_event(
             video_id, "cut_plan",
             f"{len(keep_ranges)} ranges, {segment_planner.total_duration(keep_ranges):.1f}s kept",
@@ -131,17 +142,25 @@ def process_video(video_id: str) -> None:
         db.log_event(video_id, "cut", "Rendered sentence-safe cut")
 
         # Remap transcript timestamps into the post-cut timeline for later stages.
-        # Every segment maps safely: KeepRanges are built from these same segments,
-        # so each one is guaranteed to fall entirely inside exactly one range.
+        # Only segments that actually survived the (possibly highlight-driven,
+        # non-contiguous) range selection are kept — anything that fell in a
+        # dropped gap is excluded rather than mapped to a bogus clamped time.
+        def _survived(seg) -> bool:
+            return any(r.start <= seg.start and seg.end <= r.end for r in keep_ranges)
+
         time_map = build_time_mapper(keep_ranges)
         mapped_segments = [
             type(seg)(
                 text=seg.text,
                 start=time_map(seg.start),
                 end=time_map(seg.end),
-                words=seg.words,
+                words=[
+                    type(w)(word=w.word, start=time_map(w.start), end=time_map(w.end))
+                    for w in seg.words
+                ],
             )
             for seg in segments
+            if _survived(seg)
         ]
 
         # 6. Face-tracked crop to target aspect
@@ -169,6 +188,15 @@ def process_video(video_id: str) -> None:
             db.log_event(video_id, "effects", f"{len(highlights)} highlights")
         else:
             highlights = []
+
+        # 7b. Word-synced burned-in captions
+        if toggles.captions:
+            ass_path = str(work_dir / "captions.ass")
+            captions_mod.build_ass_captions(mapped_segments, ass_path, target_w, target_h)
+            captioned_path = str(work_dir / "03b_captions.mp4")
+            captions_mod.burn_captions(current_path, ass_path, captioned_path)
+            current_path = captioned_path
+            db.log_event(video_id, "captions", "Burned in word-synced captions")
 
         # 8. Music
         if toggles.music:

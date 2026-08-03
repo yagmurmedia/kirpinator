@@ -98,7 +98,9 @@ def total_duration(ranges: list[KeepRange]) -> float:
 
 def trim_to_max_duration(ranges: list[KeepRange], max_duration_s: float) -> list[KeepRange]:
     """Drops whole trailing KeepRanges (never splits one) until the total fits.
-    Used for the Shorts <=60s constraint.
+    Used for the Shorts <=60s constraint. Simple earliest-first fallback for
+    when there's no highlight information to prioritize by (see
+    select_best_ranges for the highlight-aware version).
     """
     if total_duration(ranges) <= max_duration_s:
         return ranges
@@ -110,3 +112,39 @@ def trim_to_max_duration(ranges: list[KeepRange], max_duration_s: float) -> list
         kept.append(r)
         running += r.duration
     return kept or ranges[:1]
+
+
+def select_best_ranges(
+    ranges: list[KeepRange],
+    highlight_timestamps: list[tuple[float, float]],
+    max_duration_s: float,
+) -> list[KeepRange]:
+    """Picks the subset of KeepRanges that packs in the most/highest-confidence
+    highlight moments (loud reactions, exclamations) within the Shorts budget,
+    instead of blindly keeping whichever sentences happen to come first.
+
+    `highlight_timestamps` is a list of (t, confidence) pairs on the SAME
+    timeline as `ranges` (i.e. the original source video, before any cutting).
+    Ranges are still emitted in chronological order so the final edit still
+    plays back naturally — only *which* sentences survive is reprioritized.
+    """
+    if total_duration(ranges) <= max_duration_s:
+        return ranges
+    if not highlight_timestamps:
+        return trim_to_max_duration(ranges, max_duration_s)
+
+    def score(r: KeepRange) -> float:
+        return sum(conf for t, conf in highlight_timestamps if r.start <= t <= r.end)
+
+    scored = sorted(ranges, key=score, reverse=True)
+    selected: list[KeepRange] = []
+    running = 0.0
+    for r in scored:
+        if running + r.duration > max_duration_s:
+            continue
+        selected.append(r)
+        running += r.duration
+
+    if not selected:
+        return trim_to_max_duration(ranges, max_duration_s)
+    return sorted(selected, key=lambda r: r.start)

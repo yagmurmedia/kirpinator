@@ -14,12 +14,18 @@ import subprocess
 from app.models import Highlight
 
 POP_DURATION_S = 0.18
-POP_BRIGHTNESS = 0.28
+POP_BRIGHTNESS = 0.35
+POP_CONTRAST = 1.25
+POP_SATURATION = 1.6
 STICKER_DURATION_S = 1.3
 FONT_CANDIDATES = [
     "C\\:/Windows/Fonts/arialbd.ttf",
     "C\\:/Windows/Fonts/arial.ttf",
 ]
+# NOTE: deliberately no emoji here — Arial has no emoji glyphs, and drawtext
+# rendered them as empty tofu boxes when tested (verified against a real
+# ffmpeg frame render, not assumed). Bold colored text + outline reads as a
+# "pop" just as well without the risk of a broken-looking glyph.
 
 
 def _escape_drawtext(text: str) -> str:
@@ -28,17 +34,20 @@ def _escape_drawtext(text: str) -> str:
 
 def _pop_filter(h: Highlight) -> str:
     start, end = h.t, h.t + POP_DURATION_S
-    return f"eq=brightness={POP_BRIGHTNESS}:enable='between(t,{start:.3f},{end:.3f})'"
+    return (
+        f"eq=brightness={POP_BRIGHTNESS}:contrast={POP_CONTRAST}:saturation={POP_SATURATION}"
+        f":enable='between(t,{start:.3f},{end:.3f})'"
+    )
 
 
 def _sticker_filter(h: Highlight, font_path: str) -> str:
     start, end = h.t, h.t + STICKER_DURATION_S
-    label = _escape_drawtext(h.label.upper())
+    label = _escape_drawtext(f"» {h.label.upper()} «")
     return (
         "drawtext="
         f"fontfile='{font_path}':text='{label}':"
-        "fontcolor=white:fontsize=64:borderw=4:bordercolor=black@0.8:"
-        "x=(w-text_w)/2:y=h*0.78:"
+        "fontcolor=0xFFD400:fontsize=70:borderw=5:bordercolor=black@0.9:"
+        "x=(w-text_w)/2:y=h*0.76:"
         f"enable='between(t,{start:.3f},{end:.3f})'"
     )
 

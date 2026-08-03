@@ -21,6 +21,7 @@ _DEFAULTS: dict[str, Any] = {
     "feature_face_crop": settings.feature_face_crop,
     "feature_music": settings.feature_music,
     "feature_effects": settings.feature_effects,
+    "feature_captions": settings.feature_captions,
     "youtube_privacy_status": settings.youtube_privacy_status,
     "youtube_category_id": settings.youtube_category_id,
 }
@@ -52,6 +53,7 @@ def default_toggles_for_new_video() -> dict[str, Any]:
         "face_crop": s["feature_face_crop"],
         "music": s["feature_music"],
         "effects": s["feature_effects"],
+        "captions": s["feature_captions"],
         "made_for_kids": None,  # None => use made_for_kids_default at render time
         "custom_instructions": "",
     }

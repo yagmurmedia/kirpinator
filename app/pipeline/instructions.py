@@ -28,6 +28,8 @@ _RULES: list[tuple[tuple[str, ...], str, bool]] = [
     (("yüz takip et", "kadrajla"), "face_crop", True),
     (("made for kids kapalı", "çocuk içeriği değil", "kids off"), "made_for_kids", False),
     (("made for kids açık", "çocuk içeriği"), "made_for_kids", True),
+    (("alt yazı ekleme", "alt yazısız", "alt yazı yok", "alt yazı olmasın"), "captions", False),
+    (("alt yazı ekle", "alt yazılı", "alt yazı olsun"), "captions", True),
 ]
 
 _compiled = [
