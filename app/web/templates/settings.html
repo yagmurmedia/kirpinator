@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Ayarlar — Kirpinator{% endblock %}
+{% block content %}
+<h1>Ayarlar</h1>
+<form action="/settings" method="post" class="settings-form">
+  <label>Google Drive klasör ID'si
+    <input type="text" name="drive_folder_id" value="{{ s.drive_folder_id }}" placeholder="Drive klasör linkindeki ID">
+  </label>
+
+  <label><input type="checkbox" name="made_for_kids_default" {% if s.made_for_kids_default %}checked{% endif %}>
+    Made for Kids varsayılan olarak açık</label>
+
+  <h3>Varsayılan özellikler (yeni videolar için)</h3>
+  <label><input type="checkbox" name="feature_cut_silence" {% if s.feature_cut_silence %}checked{% endif %}> Sessizlik kesimi</label>
+  <label><input type="checkbox" name="feature_face_crop" {% if s.feature_face_crop %}checked{% endif %}> Yüz takipli kadraj</label>
+  <label><input type="checkbox" name="feature_music" {% if s.feature_music %}checked{% endif %}> Otomatik müzik</label>
+  <label><input type="checkbox" name="feature_effects" {% if s.feature_effects %}checked{% endif %}> Vurgu efektleri</label>
+
+  <label>YouTube gizlilik durumu
+    <select name="youtube_privacy_status">
+      <option value="public" {% if s.youtube_privacy_status == "public" %}selected{% endif %}>Herkese açık</option>
+      <option value="unlisted" {% if s.youtube_privacy_status == "unlisted" %}selected{% endif %}>Bağlantısı olanlar</option>
+      <option value="private" {% if s.youtube_privacy_status == "private" %}selected{% endif %}>Gizli</option>
+    </select>
+  </label>
+
+  <label>YouTube kategori ID
+    <input type="text" name="youtube_category_id" value="{{ s.youtube_category_id }}">
+  </label>
+
+  <button type="submit">Kaydet</button>
+</form>
+
+<h3>Ortam bilgisi</h3>
+<ul>
+  <li>Whisper modeli: {{ env.whisper_model_size }} ({{ env.whisper_language }})</li>
+  <li>Web port: {{ env.web_port }}</li>
+  <li>Drive tarama aralığı: {{ env.drive_poll_interval_seconds }}s</li>
+</ul>
+{% endblock %}

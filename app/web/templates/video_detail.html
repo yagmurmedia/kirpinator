@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ video.title or video.source_filename }} — Kirpinator{% endblock %}
+{% block content %}
+<a href="/" class="back">&larr; Panele dön</a>
+<h1>{{ video.title or video.source_filename }}</h1>
+<span class="badge badge-lg status-{{ video.status }}">{{ video.status }}</span>
+
+<div class="detail-grid">
+  <div class="preview-col">
+    {% if video.output_path or video.local_source_path %}
+    <video controls playsinline poster="/video/{{ video.id }}/thumbnail" src="/video/{{ video.id }}/stream"></video>
+    {% else %}
+    <div class="thumb-placeholder">Önizleme yok</div>
+    {% endif %}
+
+    {% if video.status == "ready_for_review" %}
+    <form action="/video/{{ video.id }}/approve" method="post" class="approve-form">
+      <button type="submit" class="approve-btn">✅ Onayla ve YouTube'a Yükle</button>
+    </form>
+    {% elif video.status == "failed" %}
+    <p class="error">Hata: {{ video.error }}</p>
+    <form action="/video/{{ video.id }}/reprocess" method="post">
+      <button type="submit">Yeniden Dene</button>
+    </form>
+    {% elif video.status == "uploaded" %}
+    <p class="success">
+      Yüklendi: <a href="https://youtube.com/shorts/{{ video.youtube_video_id }}" target="_blank">
+      youtube.com/shorts/{{ video.youtube_video_id }}</a>
+    </p>
+    {% endif %}
+
+    <h3>Üretilen Açıklama</h3>
+    <pre class="description">{{ video.description or "-" }}</pre>
+    <h3>Etiketler</h3>
+    <p>{{ (video.tags or []) | join(", ") }}</p>
+  </div>
+
+  <div class="controls-col">
+    <form action="/video/{{ video.id }}/update" method="post" class="toggles-form">
+      <h3>Bu video için ayarlar</h3>
+      <label><input type="checkbox" name="cut_silence" {% if toggles.cut_silence %}checked{% endif %}> Sessizlik/boşluk kesimi</label>
+      <label><input type="checkbox" name="face_crop" {% if toggles.face_crop %}checked{% endif %}> Yüz takipli kadraj</label>
+      <label><input type="checkbox" name="music" {% if toggles.music %}checked{% endif %}> Otomatik müzik</label>
+      <label><input type="checkbox" name="effects" {% if toggles.effects %}checked{% endif %}> Vurgu efektleri</label>
+
+      <label>Made for Kids
+        <select name="made_for_kids">
+          <option value="default" {% if toggles.made_for_kids is none %}selected{% endif %}>Kanal varsayılanı</option>
+          <option value="yes" {% if toggles.made_for_kids == true %}selected{% endif %}>Evet</option>
+          <option value="no" {% if toggles.made_for_kids == false %}selected{% endif %}>Hayır</option>
+        </select>
+      </label>
+
+      <label>Bu video için özel talimat
+        <textarea name="custom_instructions" rows="3" placeholder="Örn: müzik ekleme, efektsiz olsun">{{ toggles.custom_instructions }}</textarea>
+      </label>
+
+      <label><input type="checkbox" name="reprocess"> Kaydet ve yeniden işle</label>
+      <button type="submit">Kaydet</button>
+    </form>
+
+    <h3>Kayıtlar</h3>
+    <ul class="events">
+      {% for e in events %}
+      <li><span class="stage">[{{ e.stage }}]</span> {{ e.message }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

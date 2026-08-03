@@ -1,0 +1,34 @@
+# Kirpinator — fully local/free dependency set (no paid APIs required)
+
+# Web UI / server
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+jinja2==3.1.4
+python-multipart==0.0.9
+python-dotenv==1.0.1
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# Scheduling / background jobs
+apscheduler==3.10.4
+
+# Google Drive + YouTube (free quota, OAuth only — no paid API)
+google-api-python-client==2.147.0
+google-auth==2.35.0
+google-auth-oauthlib==1.2.1
+google-auth-httplib2==0.2.0
+
+# Speech-to-text (local, free, no internet needed after model download)
+faster-whisper==1.0.3
+
+# Face / object tracking for auto-crop
+opencv-python==4.10.0.84
+mediapipe==0.10.14
+numpy==1.26.4
+
+# Misc utilities
+requests==2.32.3
+python-slugify==8.0.4
+
+# Windows toast notification (free, optional — used to alert user a video is ready for review)
+winotify==1.1.0 ; sys_platform == "win32"

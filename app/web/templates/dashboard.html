@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Panel — Kirpinator{% endblock %}
+{% block content %}
+<h1>Videolar</h1>
+{% if not videos %}
+  <p class="empty">Henüz video yok. Drive klasörü ayarlarda tanımlıysa otomatik gelecek,
+  ya da bir video dosyasını elle ekleyebilirsin.</p>
+{% endif %}
+
+<form action="/upload_manual" method="post" enctype="multipart/form-data" class="manual-upload">
+  <input type="file" name="file" accept="video/*" required>
+  <button type="submit">Elle Video Ekle</button>
+</form>
+
+<div class="video-grid">
+  {% for v in videos %}
+  <a class="video-card status-{{ v.status }}" href="/video/{{ v.id }}">
+    <div class="thumb">
+      {% if v.thumbnail_path %}
+        <img src="/video/{{ v.id }}/thumbnail" alt="">
+      {% else %}
+        <div class="thumb-placeholder">{{ v.orientation or "?" }}</div>
+      {% endif %}
+      <span class="badge">{{ v.status }}</span>
+    </div>
+    <div class="meta">
+      <div class="title">{{ v.title or v.source_filename }}</div>
+      <div class="sub">{{ v.orientation or "" }} · {{ "%.0f"|format(v.duration_s) if v.duration_s else "" }}s</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
