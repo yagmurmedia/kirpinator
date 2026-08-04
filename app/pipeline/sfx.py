@@ -27,13 +27,32 @@ _GENERATORS: dict[str, tuple[str, float]] = {
     "ding": ("sin(2*PI*880*t)*exp(-4*t)+0.3*sin(2*PI*1760*t)*exp(-4*t)", 0.5),
     # Vibrato-modulated tone with decay — a cartoon "boing"/spring sound.
     "boing": ("sin(2*PI*(260+40*sin(2*PI*9*t))*t)*exp(-3.2*t)", 0.4),
+    # Deep punchy bass hit, fast attack/decay — the classic internet "meme
+    # boom" used to punctuate the single biggest moment in a video.
+    "vineboom": ("sin(2*PI*55*t)*exp(-14*t)", 0.3),
+    # Three-harmonic brass buzz — a cheerful hype-horn stinger for a
+    # celebratory keyword moment ("harika!", "süper!").
+    "airhorn": ("(0.6*sin(2*PI*440*t)+0.3*sin(2*PI*880*t)+0.1*sin(2*PI*1320*t))*exp(-1.4*t)", 0.5),
 }
 
 # Which synthesized sound plays for which highlight kind.
-SFX_FOR_KIND = {"loud_peak": "pop", "exclaim": "ding", "keyword": "boing"}
+SFX_FOR_KIND = {"loud_peak": "pop", "exclaim": "ding", "keyword": "airhorn", "protected": "boing"}
+
+# The single biggest moments (see effects.TOP_TIER_COUNT/protected_moments'
+# 0.95 confidence) get a distinct, punchier sting instead of blending into
+# the regular kind-based rotation — a "meme boom" reads as intentional
+# emphasis rather than just another background ping.
+TOP_TIER_SFX_CONFIDENCE = 0.9
+TOP_TIER_SFX = "vineboom"
 
 MAX_SFX_PER_VIDEO = 8
 SFX_VOLUME_DB = -6.0
+
+
+def _sfx_name_for(h: Highlight) -> str | None:
+    if h.confidence >= TOP_TIER_SFX_CONFIDENCE:
+        return TOP_TIER_SFX
+    return SFX_FOR_KIND.get(h.kind)
 
 
 def _ensure_cache() -> dict[str, Path]:
@@ -54,7 +73,7 @@ def _ensure_cache() -> dict[str, Path]:
 
 
 def _select_highlights(highlights: list[Highlight]) -> list[Highlight]:
-    with_sfx = [h for h in highlights if h.kind in SFX_FOR_KIND]
+    with_sfx = [h for h in highlights if _sfx_name_for(h)]
     with_sfx.sort(key=lambda h: h.confidence, reverse=True)
     chosen = with_sfx[:MAX_SFX_PER_VIDEO]
     return sorted(chosen, key=lambda h: h.t)
@@ -71,7 +90,7 @@ def apply_sound_effects(video_path: str, output_path: str, highlights: list[High
 
     cmd = ["ffmpeg", "-y", "-i", video_path]
     for h in chosen:
-        cmd += ["-i", str(sfx_paths[SFX_FOR_KIND[h.kind]])]
+        cmd += ["-i", str(sfx_paths[_sfx_name_for(h)])]
 
     filter_parts = []
     mix_inputs = ["[0:a]"]
