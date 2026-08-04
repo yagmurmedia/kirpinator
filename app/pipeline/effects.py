@@ -1,19 +1,19 @@
 """Turns Highlight events into concrete ffmpeg filter fragments and applies them.
 
-Three effect types, chained into one filter graph and rendered in a single
-pass:
-  - zoom "punch": every highlight gets a quick, snappy zoom-in-then-out beat
-    (the actual visual reads as "impact" in most editing styles) — built as
-    one continuous scale/crop expression covering the whole clip rather than
-    N independently-gated filters, which avoids a real bug we hit earlier:
-    naively toggling `scale` on/off per-highlight with `enable=` leaves
-    `crop`'s width/height referencing the *current* (possibly un-scaled)
-    frame size on the frames in between, silently cropping the entire video
-    down. A single expression that's just 1.0 outside the punch windows
-    sidesteps that.
-  - brightness/contrast/saturation "pop": layered on top of the zoom for loud
-    moments, for extra punch.
-  - bold on-screen text sticker for keyword-triggered highlights.
+Two visual "punch" styles, alternated across highlights for variety, plus a
+text sticker for keyword hits:
+  - brightness/contrast/saturation pop (bright, punchy flash)
+  - vignette pulse (quick radial darkening — reads as a focus/impact beat)
+
+Both are simple, independently-gated `enable='between(t,...)'` filters with
+no shared/combined expression. A real ffmpeg build crash (access violation)
+was hit and confirmed on a real render while an earlier version of this
+module tried a single combined time-varying zoom expression (`scale`
+with `eval=frame`) — it reproduced consistently for specific highlight
+timing patterns regardless of how few highlights were combined, so that
+whole approach was pulled rather than chasing an unbounded-risk ffmpeg bug.
+Simple per-highlight filters like these have run reliably across many real
+video renders.
 """
 from __future__ import annotations
 
@@ -26,8 +26,7 @@ POP_BRIGHTNESS = 0.35
 POP_CONTRAST = 1.25
 POP_SATURATION = 1.6
 
-ZOOM_PUNCH_DURATION_S = 0.35
-ZOOM_PUNCH_AMOUNT = 0.14  # peak zoom = 1 + this, e.g. 0.14 -> 114%
+VIGNETTE_DURATION_S = 0.22
 
 STICKER_DURATION_S = 1.3
 FONT_CANDIDATES = [
@@ -38,6 +37,12 @@ FONT_CANDIDATES = [
 # rendered them as empty tofu boxes when tested (verified against a real
 # ffmpeg frame render, not assumed). Bold colored text + outline reads as a
 # "pop" just as well without the risk of a broken-looking glyph.
+
+# A very long, highlight-heavy video chains a lot of these filters together;
+# kept modest as a sanity cap on total command-line/graph size even though
+# these simple per-highlight filters haven't shown the crash the combined
+# zoom expression did.
+MAX_VISUAL_EFFECT_HIGHLIGHTS = 20
 
 
 def _escape_drawtext(text: str) -> str:
@@ -52,6 +57,11 @@ def _pop_filter(h: Highlight) -> str:
     )
 
 
+def _vignette_filter(h: Highlight) -> str:
+    start, end = h.t, h.t + VIGNETTE_DURATION_S
+    return f"vignette=angle=PI/3:enable='between(t,{start:.3f},{end:.3f})'"
+
+
 def _sticker_filter(h: Highlight, font_path: str) -> str:
     start, end = h.t, h.t + STICKER_DURATION_S
     label = _escape_drawtext(f"» {h.label.upper()} «")
@@ -64,35 +74,6 @@ def _sticker_filter(h: Highlight, font_path: str) -> str:
     )
 
 
-def _zoom_expr(highlights: list[Highlight]) -> str:
-    """One expression, evaluated every frame, that's 1.0 except for a brief
-    smooth (sine-shaped) bump to 1+ZOOM_PUNCH_AMOUNT around each highlight.
-    Punches are short and highlight_detector already enforces a minimum gap
-    between highlights, so simple summation (no overlap in practice) is safe.
-    """
-    if not highlights:
-        return "1"
-    terms = []
-    for h in highlights:
-        start, end = h.t, h.t + ZOOM_PUNCH_DURATION_S
-        terms.append(f"if(between(t,{start:.3f},{end:.3f}),sin(PI*(t-{start:.3f})/{ZOOM_PUNCH_DURATION_S}),0)")
-    return f"1+{ZOOM_PUNCH_AMOUNT}*(" + "+".join(terms) + ")"
-
-
-def _zoom_punch_filter(highlights: list[Highlight], width: int, height: int) -> str | None:
-    zoomable = [h for h in highlights if h.kind in ("loud_peak", "exclaim", "keyword")]
-    if not zoomable:
-        return None
-    expr = _zoom_expr(zoomable)
-    # Scale up by the (time-varying) zoom factor, then crop back down to the
-    # exact, fixed output size — crop's target is a constant, not iw/ih, so
-    # frames where the zoom is 1.0 crop out exactly the original frame.
-    return (
-        f"scale=w='trunc(iw*({expr})/2)*2':h='trunc(ih*({expr})/2)*2':eval=frame,"
-        f"crop={width}:{height}"
-    )
-
-
 def build_effects_filter(
     highlights: list[Highlight],
     width: int,
@@ -101,13 +82,18 @@ def build_effects_filter(
 ) -> str | None:
     if not highlights:
         return None
+    if len(highlights) > MAX_VISUAL_EFFECT_HIGHLIGHTS:
+        highlights = sorted(highlights, key=lambda h: h.confidence, reverse=True)[:MAX_VISUAL_EFFECT_HIGHLIGHTS]
+        highlights = sorted(highlights, key=lambda h: h.t)
+
     filters = []
-    zoom = _zoom_punch_filter(highlights, width, height)
-    if zoom:
-        filters.append(zoom)
+    punch_index = 0
     for h in highlights:
         if h.kind in ("loud_peak", "exclaim"):
-            filters.append(_pop_filter(h))
+            # Alternate between the two punch styles so consecutive highlights
+            # don't all look identical.
+            filters.append(_pop_filter(h) if punch_index % 2 == 0 else _vignette_filter(h))
+            punch_index += 1
         elif h.kind == "keyword":
             filters.append(_sticker_filter(h, font_path))
     return ",".join(filters) if filters else None
