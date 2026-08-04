@@ -50,6 +50,12 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px; }
 .delete-form { margin-top: 10px; }
 .delete-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--bad); background: transparent; color: var(--bad); font-weight: 600; cursor: pointer; }
 .delete-btn:hover { background: var(--bad); color: #fff; }
+.delete-btn.small { padding: 5px 10px; font-size: 0.85em; margin-top: 6px; }
+
+.version-badge { background: var(--panel); border: 1px solid var(--border); color: var(--muted); margin-left: 8px; }
+.version-list { display: flex; flex-direction: column; gap: 14px; }
+.version-item { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+.version-video { width: 100%; max-height: 260px; background: #000; border-radius: 6px; margin-top: 6px; display: block; }
 
 .events { list-style: none; padding: 0; font-size: 0.85em; color: var(--muted); max-height: 300px; overflow-y: auto; }
 .events li { padding: 4px 0; border-bottom: 1px solid var(--border); }

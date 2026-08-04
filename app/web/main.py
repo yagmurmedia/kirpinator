@@ -79,11 +79,27 @@ def video_detail(request: Request, video_id: str):
     if not video:
         return HTMLResponse("Video bulunamadı", status_code=404)
     events = db.get_events(video_id)
+    versions = db.list_versions(video_id)
     toggles = VideoToggles.from_dict(video.get("toggles"))
     return templates.TemplateResponse(
         "video_detail.html",
-        {"request": request, "video": video, "events": events, "toggles": toggles},
+        {"request": request, "video": video, "events": events, "toggles": toggles, "versions": versions},
     )
+
+
+@app.get("/video/{video_id}/version/{version_row_id}/stream")
+def stream_version(video_id: str, version_row_id: str, request: Request):
+    versions = db.list_versions(video_id)
+    match = next((v for v in versions if v["id"] == version_row_id), None)
+    if not match or not match.get("output_path") or not Path(match["output_path"]).exists():
+        return HTMLResponse("Bulunamadı", status_code=404)
+    return _range_aware_file_response(match["output_path"], request, media_type="video/mp4")
+
+
+@app.post("/video/{video_id}/version/{version_row_id}/delete")
+def delete_version_route(video_id: str, version_row_id: str):
+    db.delete_version(video_id, version_row_id)
+    return RedirectResponse(f"/video/{video_id}", status_code=303)
 
 
 @app.post("/video/{video_id}/update")

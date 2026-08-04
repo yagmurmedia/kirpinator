@@ -27,6 +27,7 @@ from app.pipeline import (
     music,
     normalize,
     probe,
+    protected_moments,
     segment_planner,
     sfx,
     silence,
@@ -133,7 +134,18 @@ def process_video(video_id: str) -> None:
             highlight_detector.detect_audio_peaks(source_path)
             + highlight_detector.detect_keyword_highlights(segments)
         )
-        keep_ranges = segment_planner.select_best_ranges(keep_ranges, pre_highlights, max_duration)
+        protected_segments = protected_moments.find_protected_segments(
+            toggles.custom_instructions, segments
+        )
+        if protected_segments:
+            db.log_event(
+                video_id, "cut_plan",
+                f"Protected from cutting per instruction: {[s.text[:40] for s in protected_segments]}",
+            )
+        keep_ranges = segment_planner.select_best_ranges(
+            keep_ranges, pre_highlights, max_duration,
+            protected_timestamps=[s.start for s in protected_segments],
+        )
         db.log_event(
             video_id, "cut_plan",
             f"{len(keep_ranges)} ranges, {segment_planner.total_duration(keep_ranges):.1f}s kept",
@@ -216,7 +228,13 @@ def process_video(video_id: str) -> None:
         else:
             track = None
 
-        # 9. Finalize output
+        # 9. Finalize output — archive whatever was there before (a
+        # reprocess) so earlier edits stay reachable instead of being
+        # silently overwritten.
+        archived_version = db.archive_current_version(video_id)
+        if archived_version is not None:
+            db.log_event(video_id, "pipeline", f"Archived previous edit as V{archived_version}")
+
         output_path = str(OUTPUT_DIR / f"{video_id}.mp4")
         shutil.copyfile(current_path, output_path)
 

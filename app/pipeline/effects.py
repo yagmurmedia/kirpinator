@@ -1,9 +1,11 @@
 """Turns Highlight events into concrete ffmpeg filter fragments and applies them.
 
-Two visual "punch" styles, alternated across highlights for variety, plus a
+Three visual "punch" styles, cycled across highlights for variety, plus a
 text sticker for keyword hits:
   - brightness/contrast/saturation pop (bright, punchy flash)
   - vignette pulse (quick radial darkening — reads as a focus/impact beat)
+  - chroma pop (a quick saturation/hue spike — colorful, distinct from the
+    other two, reads as a "pow!" beat)
 
 Both are simple, independently-gated `enable='between(t,...)'` filters with
 no shared/combined expression. A real ffmpeg build crash (access violation)
@@ -27,6 +29,10 @@ POP_CONTRAST = 1.25
 POP_SATURATION = 1.6
 
 VIGNETTE_DURATION_S = 0.22
+
+CHROMA_DURATION_S = 0.16
+CHROMA_SATURATION = 2.4
+CHROMA_HUE_DEGREES = 25
 
 STICKER_DURATION_S = 1.3
 FONT_CANDIDATES = [
@@ -69,6 +75,14 @@ def _pop_filter(h: Highlight) -> str:
 def _vignette_filter(h: Highlight) -> str:
     start, end = h.t, h.t + VIGNETTE_DURATION_S
     return f"vignette=angle=PI/3:enable='between(t,{start:.3f},{end:.3f})'"
+
+
+def _chroma_filter(h: Highlight) -> str:
+    start, end = h.t, h.t + CHROMA_DURATION_S
+    return (
+        f"hue=h={CHROMA_HUE_DEGREES}:s={CHROMA_SATURATION}"
+        f":enable='between(t,{start:.3f},{end:.3f})'"
+    )
 
 
 def _sticker_filter(h: Highlight, font_path: str, label: str | None = None, duration: float = STICKER_DURATION_S) -> str:
@@ -115,12 +129,14 @@ def build_effects_filter(
         if id(h) in top_tier_ids:
             filters.append(_pop_filter(h))
             filters.append(_vignette_filter(h))
+            filters.append(_chroma_filter(h))
             filters.append(_sticker_filter(h, font_path, label=TOP_TIER_LABEL, duration=TOP_TIER_STICKER_DURATION_S))
             continue
         if h.kind in ("loud_peak", "exclaim"):
-            # Alternate between the two punch styles so consecutive highlights
+            # Cycle between the three punch styles so consecutive highlights
             # don't all look identical.
-            filters.append(_pop_filter(h) if punch_index % 2 == 0 else _vignette_filter(h))
+            punch_style = (_pop_filter, _vignette_filter, _chroma_filter)[punch_index % 3]
+            filters.append(punch_style(h))
             punch_index += 1
         elif h.kind == "keyword":
             filters.append(_sticker_filter(h, font_path))

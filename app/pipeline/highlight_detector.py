@@ -26,6 +26,12 @@ EXCLAMATION_KEYWORDS = [
     "vay", "vay canına", "harika", "süper", "muhteşem", "inanılmaz", "vov", "wov",
     "yaşasın", "bravo", "aferin", "işte böyle", "işte oldu", "hurra", "hop",
     "aaa", "vayy", "çok güzel", "mükemmel", "wow", "yuhu",
+    # "Payoff" words — something happening/landing/finishing right now. These
+    # matter as much as pure excitement words for picking out the moment a
+    # video is actually *about* (a tooth coming out, a trick landing, a build
+    # finishing) even when it's said flatly rather than shouted.
+    "çıkıyor", "çıktı", "oldu", "başardım", "başardık", "bitti", "tamamdır",
+    "buldum", "geldi",
 ]
 
 
@@ -116,4 +122,3 @@ def to_timestamp_tuples(highlights: list[Highlight]) -> list[tuple[float, float]
     highlight-aware range selection.
     """
     return [(h.t, h.confidence) for h in highlights]
-    return deduped

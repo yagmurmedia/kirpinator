@@ -35,8 +35,20 @@ CREATE TABLE IF NOT EXISTS videos (
     tags_json TEXT,
     youtube_video_id TEXT,
     error TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS video_versions (
+    id TEXT PRIMARY KEY,
+    video_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    output_path TEXT,
+    thumbnail_path TEXT,
+    title TEXT,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (video_id) REFERENCES videos (id)
 );
 
 CREATE TABLE IF NOT EXISTS job_events (
@@ -93,7 +105,18 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
     recover_stuck_videos()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """CREATE TABLE IF NOT EXISTS doesn't add new columns to an existing
+    table, so anything added to `videos` after the initial release needs an
+    explicit ADD COLUMN here, guarded against already having run.
+    """
+    existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(videos)")}
+    if "version" not in existing_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
 
 
 # Only 'downloading'/'processing' auto-resume as 'queued' — both are safe to
@@ -229,10 +252,11 @@ def get_events(video_id: str) -> list[dict[str, Any]]:
 
 
 def delete_video(video_id: str) -> bool:
-    """Removes a video's DB record, job history, and every file it produced
-    (source download, working-directory intermediates, output, thumbnail).
-    Only ever called from a route the user explicitly clicked — this module
-    never deletes anything on its own initiative.
+    """Removes a video's DB record, job history, every archived version, and
+    every file any of that produced (source download, working-directory
+    intermediates, output, thumbnails). Only ever called from a route the
+    user explicitly clicked — this module never deletes anything on its own
+    initiative.
     """
     import shutil
     from pathlib import Path
@@ -249,6 +273,13 @@ def delete_video(video_id: str) -> bool:
             with contextlib.suppress(OSError):
                 Path(path).unlink(missing_ok=True)
 
+    for version in list_versions(video_id):
+        for key in ("output_path", "thumbnail_path"):
+            path = version.get(key)
+            if path:
+                with contextlib.suppress(OSError):
+                    Path(path).unlink(missing_ok=True)
+
     work_dir = WORKING_DIR / video_id
     if work_dir.exists():
         with contextlib.suppress(OSError):
@@ -256,8 +287,83 @@ def delete_video(video_id: str) -> bool:
 
     with get_conn() as conn:
         conn.execute("DELETE FROM job_events WHERE video_id = ?", (video_id,))
+        conn.execute("DELETE FROM video_versions WHERE video_id = ?", (video_id,))
         conn.execute("UPDATE chat_messages SET video_id = NULL WHERE video_id = ?", (video_id,))
         conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
+    return True
+
+
+def archive_current_version(video_id: str) -> int | None:
+    """Snapshots the video's *current* output/thumbnail/title into
+    video_versions under its current version number, then bumps the live
+    version counter — called right before a reprocess overwrites
+    output_path, so old edits aren't silently lost. Returns the archived
+    version number, or None if there was nothing to archive yet (first run).
+    """
+    import shutil
+    from pathlib import Path
+
+    from app.config import OUTPUT_DIR, THUMBNAIL_DIR
+
+    row = get_video(video_id)
+    if not row or not row.get("output_path"):
+        return None
+
+    old_version = row.get("version", 1)
+    archived_output = None
+    archived_thumb = None
+
+    src_output = Path(row["output_path"])
+    if src_output.exists():
+        archived_output = OUTPUT_DIR / f"{video_id}_v{old_version}{src_output.suffix}"
+        with contextlib.suppress(OSError):
+            shutil.copyfile(src_output, archived_output)
+
+    src_thumb = row.get("thumbnail_path")
+    if src_thumb and Path(src_thumb).exists():
+        archived_thumb = THUMBNAIL_DIR / f"{video_id}_v{old_version}{Path(src_thumb).suffix}"
+        with contextlib.suppress(OSError):
+            shutil.copyfile(src_thumb, archived_thumb)
+
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO video_versions (id, video_id, version, output_path, thumbnail_path, title, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                new_id(), video_id, old_version,
+                str(archived_output) if archived_output else None,
+                str(archived_thumb) if archived_thumb else None,
+                row.get("title"),
+                time.time(),
+            ),
+        )
+        conn.execute("UPDATE videos SET version = ? WHERE id = ?", (old_version + 1, video_id))
+    return old_version
+
+
+def list_versions(video_id: str) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM video_versions WHERE video_id = ? ORDER BY version DESC", (video_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_version(video_id: str, version_row_id: str) -> bool:
+    from pathlib import Path
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM video_versions WHERE id = ? AND video_id = ?", (version_row_id, video_id)
+        ).fetchone()
+        if not row:
+            return False
+        for key in ("output_path", "thumbnail_path"):
+            path = row[key]
+            if path:
+                with contextlib.suppress(OSError):
+                    Path(path).unlink(missing_ok=True)
+        conn.execute("DELETE FROM video_versions WHERE id = ?", (version_row_id,))
     return True
 
 

@@ -41,3 +41,26 @@ def test_under_budget_returns_all_ranges_unchanged():
     selected = select_best_ranges(ranges, [(1.0, 0.9)], max_duration_s=60.0)
     assert selected == ranges
     assert total_duration(selected) == 7.0
+
+
+def test_protected_range_survives_even_with_zero_highlight_score():
+    # Real scenario: "diş çıkma anı" is said flatly, no loud audio peak and
+    # no fixed-keyword match, so the generic scorer would never pick it —
+    # protected_timestamps must guarantee it a spot anyway.
+    ranges = [
+        KeepRange(start=0.0, end=10.0),   # loud, would normally win on score
+        KeepRange(start=20.0, end=22.0),  # the quiet but important moment
+    ]
+    highlights = [(2.0, 0.9), (5.0, 0.9)]  # all inside the first range
+
+    selected = select_best_ranges(
+        ranges, highlights, max_duration_s=10.0, protected_timestamps=[21.0]
+    )
+
+    assert any(r.start == 20.0 for r in selected)
+
+
+def test_protected_range_can_exceed_budget_rather_than_be_dropped():
+    ranges = [KeepRange(start=0.0, end=15.0)]
+    selected = select_best_ranges(ranges, [], max_duration_s=5.0, protected_timestamps=[7.0])
+    assert selected == [ranges[0]]  # kept whole, even though 15s > 5s budget

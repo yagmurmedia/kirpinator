@@ -4,6 +4,7 @@
 <a href="/" class="back">&larr; Panele dön</a>
 <h1>{{ video.title or video.source_filename }}</h1>
 <span class="badge badge-lg status-{{ video.status }}">{{ video.status }}</span>
+<span class="badge badge-lg version-badge">V{{ video.version or 1 }}</span>
 
 <div class="detail-grid">
   <div class="preview-col">
@@ -33,6 +34,27 @@
     <pre class="description">{{ video.description or "-" }}</pre>
     <h3>Etiketler</h3>
     <p>{{ (video.tags or []) | join(", ") }}</p>
+
+    {% if versions %}
+    <h3>Önceki Versiyonlar</h3>
+    <div class="version-list">
+      {% for v in versions %}
+      <div class="version-item">
+        <span class="badge">V{{ v.version }}</span>
+        {% if v.output_path %}
+        <video controls playsinline muted class="version-video"
+               src="/video/{{ video.id }}/version/{{ v.id }}/stream"></video>
+        {% else %}
+        <span class="empty">dosya yok</span>
+        {% endif %}
+        <form action="/video/{{ video.id }}/version/{{ v.id }}/delete" method="post"
+              onsubmit="return confirm('Bu versiyonu kalıcı olarak silmek istediğine emin misin?');">
+          <button type="submit" class="delete-btn small">🗑 Bu versiyonu sil</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 
   <div class="controls-col">

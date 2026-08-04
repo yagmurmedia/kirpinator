@@ -45,8 +45,8 @@ def test_top_tier_highlight_gets_combo_treatment():
     ]
     filt = build_effects_filter(highlights, 1080, 1920)
 
-    # The top-tier moment gets pop + vignette + a callout label, not just one.
-    assert filt.count("enable='between(t,2.000") == 3
+    # The top-tier moment gets pop + vignette + chroma + a callout label, not just one.
+    assert filt.count("enable='between(t,2.000") == 4
     assert "İZLE" in filt
 
 
