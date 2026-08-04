@@ -20,3 +20,11 @@ def test_handles_empty_transcript_gracefully():
     assert meta.title
     assert "#shorts" in meta.title.lower()
     assert isinstance(meta.tags, list) and meta.tags
+
+
+def test_long_form_omits_shorts_tag_and_shorts_keyword():
+    segments = [TranscriptSegment(text="Bugun parkta oynuyoruz.", start=0.0, end=2.0)]
+    meta = generate_metadata(segments, mood="playful", long_form=True)
+
+    assert "#shorts" not in meta.title.lower()
+    assert "shorts" not in [t.lower() for t in meta.tags]

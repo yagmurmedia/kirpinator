@@ -169,8 +169,9 @@ Arka planda çalışan işçi (worker) sürekli:
   gönderme, geçmiş mesaj/sonuç listesi.
 - **Video detayı** (`/video/{id}`): önizleme oynatıcı, üretilen başlık/açıklama/
   etiketler, video başına özellik açma/kapama (sessizlik kesimi, yüz takibi,
-  müzik, efektler, alt yazı), serbest metin özel talimat kutusu, **"Onayla ve
-  Yükle"** butonu (sadece video hazır olduğunda görünür).
+  müzik, efektler, alt yazı, **uzun video / Shorts**), serbest metin özel
+  talimat kutusu, **"Onayla ve Yükle"** butonu (sadece video hazır olduğunda
+  görünür).
 - **Ayarlar** (`/settings`): Drive klasör ID'si, kanal geneli varsayılan
   özellikler, Made for Kids varsayılanı, YouTube gizlilik/kategori.
 
@@ -255,7 +256,15 @@ tests/                          saf mantık birim testleri
 - Vurgu/efekt tespiti kural tabanlı (ses tepe noktası + Türkçe ünlem
   kelimeleri); istenirse öğrenilmiş bir modelle değiştirilebilir —
   `app/pipeline/highlight_detector.py`'deki `Highlight` arayüzü sabit
-  tutulduğu sürece geri kalan pipeline'ı etkilemez.
+  tutulduğu sürece geri kalan pipeline'ı etkilemez. Her vurgulu anda: zoom-punch
+  (ani yakınlaşma), parlama/kontrast atışı, anahtar kelimelerde metin çıkartma,
+  ve sentezlenmiş (100% özgün, telifsiz) "pop/ding/boing" ses efektleri var —
+  bkz. `app/pipeline/effects.py`, `app/pipeline/sfx.py`.
+- **Gerçek "meme" klip ekleme yapılmıyor** — internetteki viral meme klipleri
+  (film/dizi/başka içerik üreticisi sahneleri) neredeyse istisnasız telifli
+  olduğu için, kanalın telif almasına yol açacak bir özellik eklemedim. Bunun
+  yerine yukarıdaki tamamen özgün animasyon/ses efektleri aynı "dikkat çekici,
+  eğlenceli" hissi telif riski olmadan vermeyi hedefliyor.
 - Pixabay üzerinden otomatik müzik indirme, Pixabay'in genel API'sinde stabil
   bir müzik-arama uç noktası olmadığı için şu an manuel indirmeye yönlendiriyor
   (bkz. `scripts/fetch_pixabay_music.py`) — asıl müzik kaynağı artık

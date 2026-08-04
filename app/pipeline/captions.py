@@ -17,11 +17,17 @@ BASE_COLOR = "&H00FFFFFF"  # white
 HIGHLIGHT_COLOR = "&H0000D7FF"  # bright yellow (BGR order in ASS)
 OUTLINE_COLOR = "&H00000000"  # black
 
+# A word never stays highlighted longer than this, even if the next word is
+# much further away (long pause) or it's the last word in a segment whose
+# nominal end time trails off — otherwise a caption can visibly freeze on one
+# word for several seconds, reading as broken rather than "spoken now".
+MAX_WORD_HOLD_S = 1.0
+
 ASS_HEADER_TEMPLATE = """[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
 PlayResY: {height}
-WrapStyle: 2
+WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -72,7 +78,9 @@ def build_ass_captions(
             continue
         for i, w in enumerate(words):
             start = w.start
-            end = words[i + 1].start if i + 1 < len(words) else max(w.end, seg.end)
+            natural_end = words[i + 1].start if i + 1 < len(words) else max(w.end, seg.end)
+            end = min(natural_end, w.end + MAX_WORD_HOLD_S)
+            end = max(end, start + 0.05)
             if end <= start:
                 continue
             parts = []

@@ -94,6 +94,7 @@ def update_video(
     music: bool = Form(False),
     effects: bool = Form(False),
     captions: bool = Form(False),
+    long_form: bool = Form(False),
     made_for_kids: str = Form("default"),
     custom_instructions: str = Form(""),
     reprocess: bool = Form(False),
@@ -105,6 +106,7 @@ def update_video(
         "music": music,
         "effects": effects,
         "captions": captions,
+        "long_form": long_form,
         "made_for_kids": made_for_kids_value,
         "custom_instructions": custom_instructions,
     }

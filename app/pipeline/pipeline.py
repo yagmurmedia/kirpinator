@@ -28,6 +28,7 @@ from app.pipeline import (
     normalize,
     probe,
     segment_planner,
+    sfx,
     silence,
     transcribe as transcribe_mod,
 )
@@ -122,15 +123,17 @@ def process_video(video_id: str) -> None:
 
         # When the source runs long, pick whichever sentence-safe ranges contain
         # the most/loudest highlight moments instead of blindly keeping the
-        # earliest ones — this is what makes the resulting Short the most
+        # earliest ones — this is what makes the resulting video the most
         # eventful part of the source rather than just "whatever came first".
+        # Long-form videos get a much higher cap (just a safety net, not a
+        # target) since the goal there is "keep almost everything good", not
+        # "compress into ~60s".
+        max_duration = settings.max_long_form_duration_s if toggles.long_form else settings.max_shorts_duration_s
         pre_highlights = highlight_detector.to_timestamp_tuples(
             highlight_detector.detect_audio_peaks(source_path)
             + highlight_detector.detect_keyword_highlights(segments)
         )
-        keep_ranges = segment_planner.select_best_ranges(
-            keep_ranges, pre_highlights, settings.max_shorts_duration_s
-        )
+        keep_ranges = segment_planner.select_best_ranges(keep_ranges, pre_highlights, max_duration)
         db.log_event(
             video_id, "cut_plan",
             f"{len(keep_ranges)} ranges, {segment_planner.total_duration(keep_ranges):.1f}s kept",
@@ -183,9 +186,14 @@ def process_video(video_id: str) -> None:
         if toggles.effects:
             highlights = highlight_detector.detect_highlights(cropped_path, mapped_segments)
             effected_path = str(work_dir / "03_effects.mp4")
-            effects.render_effects(cropped_path, effected_path, highlights)
+            effects.render_effects(cropped_path, effected_path, highlights, target_w, target_h)
             current_path = effected_path
             db.log_event(video_id, "effects", f"{len(highlights)} highlights")
+
+            sfx_path = str(work_dir / "03c_sfx.mp4")
+            sfx.apply_sound_effects(current_path, sfx_path, highlights)
+            current_path = sfx_path
+            db.log_event(video_id, "sfx", "Added synthesized comedic sound effects")
         else:
             highlights = []
 
@@ -221,7 +229,7 @@ def process_video(video_id: str) -> None:
         made_for_kids = (
             toggles.made_for_kids if toggles.made_for_kids is not None else settings.made_for_kids_default
         )
-        meta = generate_metadata(mapped_segments, track.mood if track else None)
+        meta = generate_metadata(mapped_segments, track.mood if track else None, long_form=toggles.long_form)
 
         db.update_video(
             video_id,

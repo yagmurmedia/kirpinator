@@ -50,13 +50,15 @@ def _top_keywords(segments: list[TranscriptSegment], n: int = 5) -> list[str]:
     return [w for w, _ in counts.most_common(n)]
 
 
-def generate_metadata(segments: list[TranscriptSegment], mood: str | None) -> GeneratedMetadata:
+def generate_metadata(
+    segments: list[TranscriptSegment], mood: str | None, *, long_form: bool = False
+) -> GeneratedMetadata:
     keywords = _top_keywords(segments)
     headline_kw = keywords[0].capitalize() if keywords else "Yağmur"
 
     template = MOOD_TITLE_TEMPLATES.get(mood, MOOD_TITLE_TEMPLATES[None])
     title = template.format(kw=headline_kw)
-    if "#shorts" not in title.lower():
+    if not long_form and "#shorts" not in title.lower():
         title = f"{title} #Shorts"
     title = title[:100]
 
@@ -71,5 +73,7 @@ def generate_metadata(segments: list[TranscriptSegment], mood: str | None) -> Ge
     description = "\n".join(description_lines)[:4900]  # YouTube description limit is 5000
 
     tags = list(dict.fromkeys([*DEFAULT_TAGS, *keywords]))[:20]
+    if long_form:
+        tags = [t for t in tags if t.lower() != "shorts"]
 
     return GeneratedMetadata(title=title, description=description, tags=tags)

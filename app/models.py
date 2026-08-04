@@ -79,6 +79,7 @@ class VideoToggles:
     music: bool = True
     effects: bool = True
     captions: bool = True
+    long_form: bool = False  # False = YouTube Shorts (<=~60s); True = regular long-form video
     made_for_kids: bool | None = None  # None => use channel default
     custom_instructions: str = ""
 
@@ -91,6 +92,7 @@ class VideoToggles:
             music=d.get("music", True),
             effects=d.get("effects", True),
             captions=d.get("captions", True),
+            long_form=d.get("long_form", False),
             made_for_kids=d.get("made_for_kids"),
             custom_instructions=d.get("custom_instructions", ""),
         )
@@ -102,6 +104,7 @@ class VideoToggles:
             "music": self.music,
             "effects": self.effects,
             "captions": self.captions,
+            "long_form": self.long_form,
             "made_for_kids": self.made_for_kids,
             "custom_instructions": self.custom_instructions,
         }
