@@ -145,6 +145,12 @@ def reprocess(video_id: str):
     return RedirectResponse(f"/video/{video_id}", status_code=303)
 
 
+@app.post("/video/{video_id}/delete")
+def delete_video(video_id: str):
+    db.delete_video(video_id)
+    return RedirectResponse("/", status_code=303)
+
+
 @app.get("/video/{video_id}/stream")
 def stream_video(video_id: str, request: Request):
     video = db.get_video(video_id)

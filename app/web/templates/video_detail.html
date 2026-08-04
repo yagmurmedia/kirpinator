@@ -61,6 +61,11 @@
       <button type="submit">Kaydet</button>
     </form>
 
+    <form action="/video/{{ video.id }}/delete" method="post" class="delete-form"
+          onsubmit="return confirm('Bu videoyu ve tüm dosyalarını kalıcı olarak silmek istediğine emin misin?');">
+      <button type="submit" class="delete-btn">🗑 Videoyu Sil</button>
+    </form>
+
     <h3>Kayıtlar</h3>
     <ul class="events">
       {% for e in events %}

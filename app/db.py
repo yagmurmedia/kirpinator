@@ -228,6 +228,39 @@ def get_events(video_id: str) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def delete_video(video_id: str) -> bool:
+    """Removes a video's DB record, job history, and every file it produced
+    (source download, working-directory intermediates, output, thumbnail).
+    Only ever called from a route the user explicitly clicked — this module
+    never deletes anything on its own initiative.
+    """
+    import shutil
+    from pathlib import Path
+
+    from app.config import WORKING_DIR
+
+    row = get_video(video_id)
+    if not row:
+        return False
+
+    for key in ("local_source_path", "output_path", "thumbnail_path"):
+        path = row.get(key)
+        if path:
+            with contextlib.suppress(OSError):
+                Path(path).unlink(missing_ok=True)
+
+    work_dir = WORKING_DIR / video_id
+    if work_dir.exists():
+        with contextlib.suppress(OSError):
+            shutil.rmtree(work_dir)
+
+    with get_conn() as conn:
+        conn.execute("DELETE FROM job_events WHERE video_id = ?", (video_id,))
+        conn.execute("UPDATE chat_messages SET video_id = NULL WHERE video_id = ?", (video_id,))
+        conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
+    return True
+
+
 def kv_get(key: str, default: str | None = None) -> str | None:
     with get_conn() as conn:
         row = conn.execute("SELECT value FROM kv_settings WHERE key = ?", (key,)).fetchone()
