@@ -138,7 +138,7 @@ def build_effects_filter(
             punch_style = (_pop_filter, _vignette_filter, _chroma_filter)[punch_index % 3]
             filters.append(punch_style(h))
             punch_index += 1
-        elif h.kind == "keyword":
+        elif h.kind in ("keyword", "protected"):
             filters.append(_sticker_filter(h, font_path))
     return ",".join(filters) if filters else None
 

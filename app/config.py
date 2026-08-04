@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     sentence_pad_s: float = 0.15  # buffer kept around a sentence so speech is never clipped
     max_shorts_duration_s: float = 59.0
     max_long_form_duration_s: float = 1200.0  # 20 min safety cap for non-Shorts videos
+    hook_guarantee_s: float = 10.0  # opening seconds always kept, even if budget-tight
 
     # --- Feature toggles (global defaults; per-video overrides live in the DB) ---
     feature_cut_silence: bool = True

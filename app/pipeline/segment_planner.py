@@ -120,6 +120,7 @@ def select_best_ranges(
     max_duration_s: float,
     *,
     protected_timestamps: list[float] | None = None,
+    hook_seconds: float = 0.0,
 ) -> list[KeepRange]:
     """Picks the subset of KeepRanges that packs in the most/highest-confidence
     highlight moments (loud reactions, exclamations) within the Shorts budget,
@@ -135,6 +136,12 @@ def select_best_ranges(
     regardless of how the generic highlight scoring would otherwise rate
     them; this can push the total slightly over max_duration_s rather than
     silently drop something the user explicitly said not to cut.
+
+    `hook_seconds` guarantees every range that starts before that mark is
+    kept too — the opening of a video is often visually the strongest hook
+    even when it has no loud audio peak or keyword yet (the highlight
+    scoring below would otherwise happily drop a quiet-but-eye-catching
+    intro in favor of a louder moment later on).
     """
     if total_duration(ranges) <= max_duration_s:
         return ranges
@@ -143,6 +150,10 @@ def select_best_ranges(
     protected_ranges = [
         r for r in ranges if any(r.start <= t <= r.end for t in protected_timestamps)
     ]
+    if hook_seconds > 0:
+        protected_ranges += [
+            r for r in ranges if r.start < hook_seconds and r not in protected_ranges
+        ]
     other_ranges = [r for r in ranges if r not in protected_ranges]
 
     selected = list(protected_ranges)

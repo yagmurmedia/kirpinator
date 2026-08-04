@@ -64,3 +64,25 @@ def test_protected_range_can_exceed_budget_rather_than_be_dropped():
     ranges = [KeepRange(start=0.0, end=15.0)]
     selected = select_best_ranges(ranges, [], max_duration_s=5.0, protected_timestamps=[7.0])
     assert selected == [ranges[0]]  # kept whole, even though 15s > 5s budget
+
+
+def test_hook_seconds_keeps_quiet_intro_over_louder_later_range():
+    # Real scenario: the opening seconds are the most eye-catching part of the
+    # video but have no loud audio peak/keyword yet, so the generic scorer
+    # would drop them in favor of a louder range that comes later.
+    ranges = [
+        KeepRange(start=0.0, end=8.0),    # quiet intro, no highlights
+        KeepRange(start=20.0, end=28.0),  # loud, would normally win outright
+    ]
+    highlights = [(22.0, 0.9), (25.0, 0.9)]
+
+    selected = select_best_ranges(ranges, highlights, max_duration_s=8.0, hook_seconds=10.0)
+
+    assert any(r.start == 0.0 for r in selected)
+
+
+def test_hook_seconds_zero_keeps_old_behavior():
+    ranges = [KeepRange(start=0.0, end=8.0), KeepRange(start=20.0, end=28.0)]
+    highlights = [(22.0, 0.9), (25.0, 0.9)]
+    selected = select_best_ranges(ranges, highlights, max_duration_s=8.0)
+    assert selected[0].start == 20.0

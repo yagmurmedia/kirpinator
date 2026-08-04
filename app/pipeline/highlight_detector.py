@@ -23,15 +23,18 @@ PEAK_DB_ABOVE_BASELINE = 7.0
 MIN_GAP_BETWEEN_PEAKS_S = 1.0
 
 EXCLAMATION_KEYWORDS = [
+    # Kept deliberately to distinctive, low-frequency-in-ordinary-speech
+    # exclamations. Generic words/phrases ("çok güzel", "oldu", "geldi",
+    # "bitti", "aaa", "hop", "işte böyle") were tried here and pulled after
+    # they matched routine narration constantly, firing the top-tier "İZLE"
+    # combo effect on completely unremarkable lines. True can't-miss payoff
+    # moments (e.g. "the tooth is coming out") are now found by
+    # app.pipeline.protected_moments (semantic, instruction-driven) instead
+    # of by bare substring match here.
     "vay", "vay canına", "harika", "süper", "muhteşem", "inanılmaz", "vov", "wov",
-    "yaşasın", "bravo", "aferin", "işte böyle", "işte oldu", "hurra", "hop",
-    "aaa", "vayy", "çok güzel", "mükemmel", "wow", "yuhu",
-    # "Payoff" words — something happening/landing/finishing right now. These
-    # matter as much as pure excitement words for picking out the moment a
-    # video is actually *about* (a tooth coming out, a trick landing, a build
-    # finishing) even when it's said flatly rather than shouted.
-    "çıkıyor", "çıktı", "oldu", "başardım", "başardık", "bitti", "tamamdır",
-    "buldum", "geldi",
+    "yaşasın", "bravo", "aferin", "işte oldu", "hurra",
+    "vayy", "mükemmel", "wow", "yuhu",
+    "başardım", "başardık", "tamamdır", "buldum",
 ]
 
 

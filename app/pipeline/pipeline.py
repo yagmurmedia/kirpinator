@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app import db
 from app.config import OUTPUT_DIR, THUMBNAIL_DIR, WORKING_DIR, settings
-from app.models import CropKeyframe, VideoToggles
+from app.models import CropKeyframe, Highlight, VideoToggles
 from app.pipeline import (
     captions as captions_mod,
     cutter,
@@ -145,6 +145,7 @@ def process_video(video_id: str) -> None:
         keep_ranges = segment_planner.select_best_ranges(
             keep_ranges, pre_highlights, max_duration,
             protected_timestamps=[s.start for s in protected_segments],
+            hook_seconds=settings.hook_guarantee_s if not toggles.long_form else 0.0,
         )
         db.log_event(
             video_id, "cut_plan",
@@ -197,6 +198,15 @@ def process_video(video_id: str) -> None:
         current_path = cropped_path
         if toggles.effects:
             highlights = highlight_detector.detect_highlights(cropped_path, mapped_segments)
+            # Moments the semantic protected-moment matcher confirmed (e.g. "the
+            # tooth is coming out") always get top-tier visual emphasis too —
+            # more reliable than the generic keyword list, which is deliberately
+            # kept narrow to avoid false-positiving on ordinary narration.
+            protected_texts = {s.text for s in protected_segments}
+            for seg in mapped_segments:
+                if seg.text in protected_texts:
+                    highlights.append(Highlight(t=seg.start, kind="protected", label=seg.text[:24], confidence=0.95))
+            highlights.sort(key=lambda h: h.t)
             effected_path = str(work_dir / "03_effects.mp4")
             effects.render_effects(cropped_path, effected_path, highlights, target_w, target_h)
             current_path = effected_path
