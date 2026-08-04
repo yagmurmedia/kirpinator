@@ -18,7 +18,7 @@ import threading
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -144,14 +144,60 @@ def reprocess(video_id: str):
 
 
 @app.get("/video/{video_id}/stream")
-def stream_video(video_id: str):
+def stream_video(video_id: str, request: Request):
     video = db.get_video(video_id)
     if not video:
         return HTMLResponse("Bulunamadı", status_code=404)
     path = video.get("output_path") or video.get("local_source_path")
     if not path or not Path(path).exists():
         return HTMLResponse("Dosya henüz hazır değil", status_code=404)
-    return FileResponse(path, media_type="video/mp4")
+    return _range_aware_file_response(path, request, media_type="video/mp4")
+
+
+def _range_aware_file_response(path: str, request: Request, *, media_type: str) -> Response:
+    """Mobile browsers' native <video> player requires proper HTTP Range
+    (206 Partial Content) support to play or seek at all — without it, a
+    phone on mobile data (esp. through a Tailscale relay) either stalls
+    trying to fetch the whole file up front or just refuses to play. The
+    installed Starlette version (0.38) doesn't implement this in
+    FileResponse, so it's done by hand here.
+    """
+    file_size = Path(path).stat().st_size
+    range_header = request.headers.get("range")
+    if not range_header or not range_header.startswith("bytes="):
+        return FileResponse(path, media_type=media_type, headers={"Accept-Ranges": "bytes"})
+
+    try:
+        range_spec = range_header.removeprefix("bytes=").split(",")[0]
+        start_s, _, end_s = range_spec.partition("-")
+        start = int(start_s) if start_s else 0
+        end = int(end_s) if end_s else file_size - 1
+        end = min(end, file_size - 1)
+    except ValueError:
+        return FileResponse(path, media_type=media_type, headers={"Accept-Ranges": "bytes"})
+
+    if start >= file_size or start > end:
+        return Response(status_code=416, headers={"Content-Range": f"bytes */{file_size}"})
+
+    chunk_size = end - start + 1
+
+    def iterfile():
+        with open(path, "rb") as f:
+            f.seek(start)
+            remaining = chunk_size
+            while remaining > 0:
+                data = f.read(min(1024 * 1024, remaining))
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    headers = {
+        "Content-Range": f"bytes {start}-{end}/{file_size}",
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(chunk_size),
+    }
+    return StreamingResponse(iterfile(), status_code=206, media_type=media_type, headers=headers)
 
 
 @app.get("/video/{video_id}/thumbnail")
