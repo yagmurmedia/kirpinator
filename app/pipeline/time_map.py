@@ -11,13 +11,22 @@ from __future__ import annotations
 from app.models import KeepRange
 
 
-def build_time_mapper(ranges: list[KeepRange]):
+def build_time_mapper(ranges: list[KeepRange], *, crossfade_s: float = 0.0):
+    """`crossfade_s` must match whatever cutter.render_cut actually used —
+    each crossfade transition eats that many seconds out of the output
+    timeline (see cutter.build_crossfade_filter's offset math), so every
+    range after the first needs its offset shifted back by one
+    crossfade_s per transition or captions/effects drift out of sync with
+    the real video more and more with each cut.
+    """
     ranges = sorted(ranges, key=lambda r: r.start)
     offsets = []
     running = 0.0
-    for r in ranges:
+    for i, r in enumerate(ranges):
         offsets.append(running)
         running += r.duration
+        if crossfade_s > 0 and i < len(ranges) - 1:
+            running -= crossfade_s
 
     def map_time(t: float) -> float:
         for r, offset in zip(ranges, offsets):

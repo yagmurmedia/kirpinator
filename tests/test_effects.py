@@ -10,7 +10,7 @@ def test_loud_peak_gets_a_punch_filter():
     highlights = [Highlight(t=2.0, kind="loud_peak", label="loud", confidence=0.7)]
     filt = build_effects_filter(highlights, 1080, 1920)
 
-    assert "eq=brightness=" in filt or "vignette=" in filt
+    assert "hue=" in filt
 
 
 def test_keyword_gets_text_sticker_not_a_punch_filter():
@@ -27,15 +27,14 @@ def test_keyword_gets_text_sticker_not_a_punch_filter():
     assert filt.count("enable='between(t,10.000") == 1  # sticker only, not the top-tier combo
 
 
-def test_consecutive_punches_alternate_style():
+def test_consecutive_loud_peaks_both_get_the_color_pop():
     highlights = [
         Highlight(t=1.0, kind="loud_peak", label="a", confidence=0.7),
         Highlight(t=2.0, kind="exclaim", label="b", confidence=0.7),
     ]
     filt = build_effects_filter(highlights, 1080, 1920)
 
-    assert "eq=brightness=" in filt
-    assert "vignette=" in filt
+    assert filt.count("hue=") == 2
 
 
 def test_top_tier_highlight_gets_combo_treatment():
@@ -45,8 +44,11 @@ def test_top_tier_highlight_gets_combo_treatment():
     ]
     filt = build_effects_filter(highlights, 1080, 1920)
 
-    # The top-tier moment gets pop + vignette + chroma + a callout label, not just one.
-    assert filt.count("enable='between(t,2.000") == 4
+    # The top-tier moment gets the color pop + a callout label, not a
+    # brightness flash or vignette darkening (dropped per user feedback).
+    assert filt.count("enable='between(t,2.000") == 2
+    assert "eq=brightness=" not in filt
+    assert "vignette=" not in filt
     assert "İZLE" in filt
 
 

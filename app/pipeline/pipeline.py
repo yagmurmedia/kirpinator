@@ -152,19 +152,26 @@ def process_video(video_id: str) -> None:
             f"{len(keep_ranges)} ranges, {segment_planner.total_duration(keep_ranges):.1f}s kept",
         )
 
-        # 5. Render the cut
+        # 5. Render the cut — crossfaded transitions between kept ranges where
+        # both sides are long enough, hard cuts otherwise (see cutter.py).
         cut_path = str(work_dir / "01_cut.mp4")
         cutter.render_cut(video_source, keep_ranges, cut_path)
-        db.log_event(video_id, "cut", "Rendered sentence-safe cut")
+        crossfade_s = cutter.XFADE_DURATION_S if cutter.can_crossfade(keep_ranges) else 0.0
+        db.log_event(
+            video_id, "cut",
+            f"Rendered sentence-safe cut ({'crossfade' if crossfade_s else 'hard cut'} transitions)",
+        )
 
         # Remap transcript timestamps into the post-cut timeline for later stages.
         # Only segments that actually survived the (possibly highlight-driven,
         # non-contiguous) range selection are kept — anything that fell in a
         # dropped gap is excluded rather than mapped to a bogus clamped time.
+        # crossfade_s must mirror exactly what render_cut just did above, or
+        # captions/effects drift out of sync a little more with every transition.
         def _survived(seg) -> bool:
             return any(r.start <= seg.start and seg.end <= r.end for r in keep_ranges)
 
-        time_map = build_time_mapper(keep_ranges)
+        time_map = build_time_mapper(keep_ranges, crossfade_s=crossfade_s)
         mapped_segments = [
             type(seg)(
                 text=seg.text,

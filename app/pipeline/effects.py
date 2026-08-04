@@ -1,34 +1,30 @@
 """Turns Highlight events into concrete ffmpeg filter fragments and applies them.
 
-Three visual "punch" styles, cycled across highlights for variety, plus a
-text sticker for keyword hits:
-  - brightness/contrast/saturation pop (bright, punchy flash)
-  - vignette pulse (quick radial darkening — reads as a focus/impact beat)
-  - chroma pop (a quick saturation/hue spike — colorful, distinct from the
-    other two, reads as a "pow!" beat)
+Deliberately restrained: a single subtle color-pop (a brief saturation/hue
+lift, no brightness spike, no edge darkening) plus a bold text callout for
+genuine highlights. Earlier versions cycled through a brightness/contrast
+"flash" and a vignette-style edge darkening on every loud moment — repeated
+user feedback called that out by name as looking amateurish ("sadece flash
+efekt... siyah gölge"), so both were dropped rather than tuned again. The
+"professional" read now comes from real crossfade transitions between cuts
+(see cutter.py) and precise callouts on true highlights, not full-frame
+screen effects.
 
-Both are simple, independently-gated `enable='between(t,...)'` filters with
+This is a simple, independently-gated `enable='between(t,...)'` filter with
 no shared/combined expression. A real ffmpeg build crash (access violation)
 was hit and confirmed on a real render while an earlier version of this
 module tried a single combined time-varying zoom expression (`scale`
 with `eval=frame`) — it reproduced consistently for specific highlight
 timing patterns regardless of how few highlights were combined, so that
 whole approach was pulled rather than chasing an unbounded-risk ffmpeg bug.
-Simple per-highlight filters like these have run reliably across many real
-video renders.
+Simple per-highlight filters like this one have run reliably across many
+real video renders.
 """
 from __future__ import annotations
 
 import subprocess
 
 from app.models import Highlight
-
-POP_DURATION_S = 0.18
-POP_BRIGHTNESS = 0.35
-POP_CONTRAST = 1.25
-POP_SATURATION = 1.6
-
-VIGNETTE_DURATION_S = 0.22
 
 CHROMA_DURATION_S = 0.16
 CHROMA_SATURATION = 2.4
@@ -52,9 +48,9 @@ MAX_VISUAL_EFFECT_HIGHLIGHTS = 20
 
 # A long video can rack up hundreds of highlights (a 13-minute source hit 298
 # in practice) — giving every single one the same small punch reads as flat.
-# The handful of genuinely highest-confidence moments get a stronger, distinct
-# treatment (pop + vignette together, plus a callout label) instead of just
-# another beat in a long, uniform sequence.
+# The handful of genuinely highest-confidence moments get a distinct callout
+# label on top of the color pop instead of just another beat in a long,
+# uniform sequence.
 TOP_TIER_COUNT = 4
 TOP_TIER_LABEL = "İZLE"
 TOP_TIER_STICKER_DURATION_S = 1.0
@@ -62,19 +58,6 @@ TOP_TIER_STICKER_DURATION_S = 1.0
 
 def _escape_drawtext(text: str) -> str:
     return text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
-
-
-def _pop_filter(h: Highlight) -> str:
-    start, end = h.t, h.t + POP_DURATION_S
-    return (
-        f"eq=brightness={POP_BRIGHTNESS}:contrast={POP_CONTRAST}:saturation={POP_SATURATION}"
-        f":enable='between(t,{start:.3f},{end:.3f})'"
-    )
-
-
-def _vignette_filter(h: Highlight) -> str:
-    start, end = h.t, h.t + VIGNETTE_DURATION_S
-    return f"vignette=angle=PI/3:enable='between(t,{start:.3f},{end:.3f})'"
 
 
 def _chroma_filter(h: Highlight) -> str:
@@ -124,20 +107,13 @@ def build_effects_filter(
     visual.sort(key=lambda h: h.t)
 
     filters = []
-    punch_index = 0
     for h in visual:
         if id(h) in top_tier_ids:
-            filters.append(_pop_filter(h))
-            filters.append(_vignette_filter(h))
             filters.append(_chroma_filter(h))
             filters.append(_sticker_filter(h, font_path, label=TOP_TIER_LABEL, duration=TOP_TIER_STICKER_DURATION_S))
             continue
         if h.kind in ("loud_peak", "exclaim"):
-            # Cycle between the three punch styles so consecutive highlights
-            # don't all look identical.
-            punch_style = (_pop_filter, _vignette_filter, _chroma_filter)[punch_index % 3]
-            filters.append(punch_style(h))
-            punch_index += 1
+            filters.append(_chroma_filter(h))
         elif h.kind in ("keyword", "protected"):
             filters.append(_sticker_filter(h, font_path))
     return ",".join(filters) if filters else None
