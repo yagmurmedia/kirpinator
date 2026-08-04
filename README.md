@@ -84,6 +84,15 @@ Windows'ta `SETUP.bat` dosyasını çift tıklamak da aynı işi yapar.
    seferlik giriş yaparsınız. Token `secrets/google_token.json` içinde saklanır
    ve otomatik yenilenir — bir daha tarayıcı açılmaz.
 
+### Daha doğru transkript/alt yazı (isteğe bağlı, ücretli)
+
+Varsayılan olarak transkripsiyon tamamen ücretsiz yerel Whisper ile yapılır.
+Kendi [ElevenLabs](https://elevenlabs.io) aboneliğiniz varsa, `.env`'e
+`ELEVENLABS_API_KEY` eklemeniz yeterli — ayarlıysa otomatik olarak
+kullanılır (Profile > API Keys'ten alınır), daha doğru transkript ve alt
+yazı üretir. Anahtar çalışmazsa (yanlış/süresi dolmuş) otomatik olarak
+Whisper'a döner, video hiçbir zaman bu yüzden başarısız olmaz.
+
 ### Müzik kütüphanesi
 
 ```bash

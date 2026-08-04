@@ -14,13 +14,17 @@ def test_loud_peak_gets_a_punch_filter():
 
 
 def test_keyword_gets_text_sticker_not_a_punch_filter():
-    highlights = [Highlight(t=1.0, kind="keyword", label="harika", confidence=0.9)]
+    # Several higher-confidence filler highlights so the keyword one (0.3)
+    # isn't itself promoted to the top tier — this isolates the plain
+    # "keyword -> sticker only" behavior from the separate top-tier combo
+    # behavior (covered by its own tests below).
+    highlights = [Highlight(t=float(i), kind="loud_peak", label="x", confidence=0.9) for i in range(4)]
+    highlights.append(Highlight(t=10.0, kind="keyword", label="harika", confidence=0.3))
     filt = build_effects_filter(highlights, 1080, 1920)
 
     assert "drawtext=" in filt
     assert "HARIKA" in filt
-    assert "eq=brightness=" not in filt
-    assert "vignette=" not in filt
+    assert filt.count("enable='between(t,10.000") == 1  # sticker only, not the top-tier combo
 
 
 def test_consecutive_punches_alternate_style():
@@ -32,6 +36,34 @@ def test_consecutive_punches_alternate_style():
 
     assert "eq=brightness=" in filt
     assert "vignette=" in filt
+
+
+def test_top_tier_highlight_gets_combo_treatment():
+    highlights = [
+        Highlight(t=1.0, kind="loud_peak", label="a", confidence=0.2),
+        Highlight(t=2.0, kind="loud_peak", label="best", confidence=0.99),
+    ]
+    filt = build_effects_filter(highlights, 1080, 1920)
+
+    # The top-tier moment gets pop + vignette + a callout label, not just one.
+    assert filt.count("enable='between(t,2.000") == 3
+    assert "İZLE" in filt
+
+
+def test_top_tier_included_even_if_visual_cap_would_exclude_it():
+    # 25 low-confidence highlights (over the visual cap) plus one clear best —
+    # the best one must not get silently dropped by the cap.
+    from app.pipeline.effects import MAX_VISUAL_EFFECT_HIGHLIGHTS
+
+    highlights = [
+        Highlight(t=float(i), kind="loud_peak", label="x", confidence=0.1)
+        for i in range(MAX_VISUAL_EFFECT_HIGHLIGHTS + 5)
+    ]
+    highlights.append(Highlight(t=999.0, kind="loud_peak", label="best", confidence=0.99))
+
+    filt = build_effects_filter(highlights, 1080, 1920)
+    assert "999.000" in filt
+    assert "İZLE" in filt
 
 
 def test_many_highlights_never_crashed_ffmpeg_in_practice():

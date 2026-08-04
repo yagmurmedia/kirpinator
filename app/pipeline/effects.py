@@ -44,6 +44,15 @@ FONT_CANDIDATES = [
 # zoom expression did.
 MAX_VISUAL_EFFECT_HIGHLIGHTS = 20
 
+# A long video can rack up hundreds of highlights (a 13-minute source hit 298
+# in practice) — giving every single one the same small punch reads as flat.
+# The handful of genuinely highest-confidence moments get a stronger, distinct
+# treatment (pop + vignette together, plus a callout label) instead of just
+# another beat in a long, uniform sequence.
+TOP_TIER_COUNT = 4
+TOP_TIER_LABEL = "İZLE"
+TOP_TIER_STICKER_DURATION_S = 1.0
+
 
 def _escape_drawtext(text: str) -> str:
     return text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
@@ -62,12 +71,12 @@ def _vignette_filter(h: Highlight) -> str:
     return f"vignette=angle=PI/3:enable='between(t,{start:.3f},{end:.3f})'"
 
 
-def _sticker_filter(h: Highlight, font_path: str) -> str:
-    start, end = h.t, h.t + STICKER_DURATION_S
-    label = _escape_drawtext(f"» {h.label.upper()} «")
+def _sticker_filter(h: Highlight, font_path: str, label: str | None = None, duration: float = STICKER_DURATION_S) -> str:
+    start, end = h.t, h.t + duration
+    text = _escape_drawtext(f"» {(label or h.label).upper()} «")
     return (
         "drawtext="
-        f"fontfile='{font_path}':text='{label}':"
+        f"fontfile='{font_path}':text='{text}':"
         "fontcolor=0xFFD400:fontsize=70:borderw=5:bordercolor=black@0.9:"
         "x=(w-text_w)/2:y=h*0.76:"
         f"enable='between(t,{start:.3f},{end:.3f})'"
@@ -82,13 +91,32 @@ def build_effects_filter(
 ) -> str | None:
     if not highlights:
         return None
-    if len(highlights) > MAX_VISUAL_EFFECT_HIGHLIGHTS:
-        highlights = sorted(highlights, key=lambda h: h.confidence, reverse=True)[:MAX_VISUAL_EFFECT_HIGHLIGHTS]
-        highlights = sorted(highlights, key=lambda h: h.t)
+
+    # The genuinely best moments (by confidence) across the *entire* highlight
+    # list — not just whatever survives the MAX_VISUAL_EFFECT_HIGHLIGHTS cap
+    # below — get a distinct, stronger combo treatment instead of blending
+    # into a long run of identical small punches.
+    ranked = sorted(highlights, key=lambda h: h.confidence, reverse=True)
+    top_tier = ranked[:TOP_TIER_COUNT]
+    top_tier_ids = {id(h) for h in top_tier}
+
+    visual = highlights
+    if len(visual) > MAX_VISUAL_EFFECT_HIGHLIGHTS:
+        visual = sorted(visual, key=lambda h: h.confidence, reverse=True)[:MAX_VISUAL_EFFECT_HIGHLIGHTS]
+    visual_ids = {id(h) for h in visual}
+    # Guarantee the top-tier moments always get *something* even if the cap
+    # above would otherwise have excluded them.
+    visual = list(visual) + [h for h in top_tier if id(h) not in visual_ids]
+    visual.sort(key=lambda h: h.t)
 
     filters = []
     punch_index = 0
-    for h in highlights:
+    for h in visual:
+        if id(h) in top_tier_ids:
+            filters.append(_pop_filter(h))
+            filters.append(_vignette_filter(h))
+            filters.append(_sticker_filter(h, font_path, label=TOP_TIER_LABEL, duration=TOP_TIER_STICKER_DURATION_S))
+            continue
         if h.kind in ("loud_peak", "exclaim"):
             # Alternate between the two punch styles so consecutive highlights
             # don't all look identical.

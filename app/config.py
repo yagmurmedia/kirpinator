@@ -37,11 +37,18 @@ class Settings(BaseSettings):
     youtube_privacy_status: str = "public"  # public | unlisted | private (applied only after human approval)
     made_for_kids_default: bool = True
 
-    # --- Whisper (speech-to-text) ---
+    # --- Whisper (speech-to-text, free/local default) ---
     whisper_model_size: str = "small"  # tiny/base/small/medium — small is a good CPU-friendly default
     whisper_language: str = "tr"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
+
+    # --- ElevenLabs Scribe (optional, paid, used if you set an API key) ---
+    # More accurate than local Whisper in practice — if set, transcription
+    # uses this instead. Falls back to Whisper automatically if the API call
+    # fails for any reason, so a bad/expired key never blocks a video.
+    elevenlabs_api_key: str = ""
+    elevenlabs_stt_model: str = "scribe_v1"
 
     # --- Editing defaults (overridable per-video from the UI) ---
     target_aspect_vertical: str = "1080x1920"
