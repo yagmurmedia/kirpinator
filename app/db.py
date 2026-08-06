@@ -74,6 +74,21 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     reply TEXT NOT NULL,
     created_at REAL NOT NULL
 );
+
+-- A standing to-do list of "reprocess this video with this toggle profile"
+-- rows, drained one at a time by the worker (see app/jobs/worker.py) once
+-- the normal 'queued' list is empty. Each drained row rides the existing
+-- pipeline + versioning machinery unchanged, so every variant lands as its
+-- own archived version (V1, V2, ...) the user can compare side by side.
+CREATE TABLE IF NOT EXISTS variant_queue (
+    id TEXT PRIMARY KEY,
+    video_id TEXT NOT NULL,
+    profile_name TEXT NOT NULL,
+    toggles_json TEXT NOT NULL,
+    position REAL NOT NULL,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (video_id) REFERENCES videos (id)
+);
 """
 
 # Valid status values, in the order a video normally moves through them.
@@ -288,6 +303,7 @@ def delete_video(video_id: str) -> bool:
     with get_conn() as conn:
         conn.execute("DELETE FROM job_events WHERE video_id = ?", (video_id,))
         conn.execute("DELETE FROM video_versions WHERE video_id = ?", (video_id,))
+        conn.execute("DELETE FROM variant_queue WHERE video_id = ?", (video_id,))
         conn.execute("UPDATE chat_messages SET video_id = NULL WHERE video_id = ?", (video_id,))
         conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
     return True
@@ -365,6 +381,49 @@ def delete_version(video_id: str, version_row_id: str) -> bool:
                     Path(path).unlink(missing_ok=True)
         conn.execute("DELETE FROM video_versions WHERE id = ?", (version_row_id,))
     return True
+
+
+def enqueue_variants(video_id: str, profiles: list[tuple[str, dict]]) -> None:
+    """Queues a batch of (profile_name, toggle_overrides) pairs for `video_id`.
+    Drained strictly in insertion order by the worker — see pop_next_variant.
+    """
+    with get_conn() as conn:
+        base = time.time()
+        conn.executemany(
+            "INSERT INTO variant_queue (id, video_id, profile_name, toggles_json, position, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (new_id(), video_id, name, json.dumps(overrides), base + i * 1e-6, base)
+                for i, (name, overrides) in enumerate(profiles)
+            ],
+        )
+
+
+def pop_next_variant() -> dict[str, Any] | None:
+    """Removes and returns the oldest pending variant-queue row (FIFO across
+    every video), or None if the queue is empty.
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM variant_queue ORDER BY position ASC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute("DELETE FROM variant_queue WHERE id = ?", (row["id"],))
+    d = dict(row)
+    d["toggles"] = json.loads(d["toggles_json"])
+    return d
+
+
+def list_variant_queue(video_id: str | None = None) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        if video_id:
+            rows = conn.execute(
+                "SELECT * FROM variant_queue WHERE video_id = ? ORDER BY position ASC", (video_id,)
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM variant_queue ORDER BY position ASC").fetchall()
+    return [dict(r) for r in rows]
 
 
 def kv_get(key: str, default: str | None = None) -> str | None:

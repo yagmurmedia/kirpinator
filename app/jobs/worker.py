@@ -47,12 +47,36 @@ def _process_one_queued() -> bool:
     return True
 
 
+def _promote_next_variant() -> bool:
+    """Only runs once the normal 'queued' list is empty (see _loop), so
+    on-demand reprocessing always wins over the variant backlog. Applies the
+    next queued profile's toggle overrides on top of whatever the video's
+    current toggles/custom_instructions already are, then queues it — the
+    existing versioning system (archive_current_version) means each variant
+    lands as its own comparable V1/V2/... instead of overwriting the last.
+    """
+    variant = db.pop_next_variant()
+    if not variant:
+        return False
+    video_id = variant["video_id"]
+    row = db.get_video(video_id)
+    if not row:
+        return True  # video was deleted since being queued — just drop it
+    merged_toggles = {**(row.get("toggles") or {}), **variant["toggles"]}
+    db.update_video(video_id, toggles=merged_toggles)
+    db.set_status(video_id, "queued")
+    db.log_event(video_id, "variant", f"Applying variant profile '{variant['profile_name']}'")
+    return True
+
+
 def _loop() -> None:
     logger.info("Worker started (poll interval=%ss)", settings.worker_poll_interval_seconds)
     while not _stop_event.is_set():
         try:
             _drive_poll_tick()
             did_work = _process_one_queued()
+            if not did_work:
+                did_work = _promote_next_variant()
         except Exception:
             # A transient failure here (DB I/O hiccup, unexpected bug, etc.)
             # must never permanently kill the worker thread — that would
