@@ -26,6 +26,11 @@ opencv-python==4.10.0.84
 mediapipe==0.10.14
 numpy==1.26.4
 
+# Visual scene-cut detection (local, free, open-source) — an extra highlight
+# signal alongside audio peaks/keywords: a shot/scene change often lines up
+# with something visually worth noticing even when it's audio-quiet.
+scenedetect==0.7.1
+
 # Misc utilities
 requests==2.32.3
 python-slugify==8.0.4

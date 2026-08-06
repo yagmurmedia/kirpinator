@@ -11,6 +11,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from app import db, settings_store
 from app.config import INCOMING_DIR, settings
 from app.drive.auth import get_credentials
+from app.pipeline.variant_profiles import SHORTS_VARIANT_PROFILES
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,18 @@ def download_video(video_id: str, drive_file_id: str, filename: str) -> str:
     buffer.close()
 
     db.update_video(video_id, local_source_path=str(dest_path))
-    db.set_status(video_id, "queued")
     db.log_event(video_id, "drive", f"Downloaded to {dest_path}")
+
+    # Every new video gets the same standing treatment: a batch of distinct
+    # Shorts edit variants to choose from, not a single fixed edit — per
+    # explicit instruction to apply this uniformly going forward, no
+    # per-video judgment calls. Status goes to 'discovered' (not 'queued')
+    # so the worker's variant-queue drain (see app.jobs.worker) is what
+    # advances it, one profile at a time.
+    db.enqueue_variants(video_id, SHORTS_VARIANT_PROFILES)
+    db.set_status(video_id, "discovered")
+    db.log_event(
+        video_id, "variant",
+        f"Queued {len(SHORTS_VARIANT_PROFILES)} Shorts variant profiles for comparison",
+    )
     return str(dest_path)

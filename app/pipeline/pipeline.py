@@ -130,9 +130,13 @@ def process_video(video_id: str) -> None:
         # target) since the goal there is "keep almost everything good", not
         # "compress into ~60s".
         max_duration = settings.max_long_form_duration_s if toggles.long_form else settings.max_shorts_duration_s
+        scene_changes = highlight_detector.detect_scene_changes(source_path)
+        if scene_changes:
+            db.log_event(video_id, "cut_plan", f"{len(scene_changes)} scene changes detected (extra selection signal)")
         pre_highlights = highlight_detector.to_timestamp_tuples(
             highlight_detector.detect_audio_peaks(source_path)
             + highlight_detector.detect_keyword_highlights(segments)
+            + scene_changes
         )
         protected_segments = protected_moments.find_protected_segments(
             toggles.custom_instructions, segments

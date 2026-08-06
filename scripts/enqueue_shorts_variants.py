@@ -2,29 +2,19 @@
 variants for one or more videos, so the reviewer can compare a handful of
 genuinely different, tasteful takes instead of a single fixed edit.
 
-Each variant only varies toggles that are real, working pipeline knobs
-(music/effects/face-crop on or off) — no gimmicky/random effects, per
-explicit direction to keep it professional. cut_silence and captions stay
-on in every variant (both are unconditionally wanted); long_form stays off
-(Shorts); each video's existing custom_instructions (e.g. a "don't cut this
-moment" protection) is left untouched.
+New videos get this automatically now (see app.drive.client.download_video)
+— this script is for backfilling videos that were downloaded before that
+existed, or re-running the batch on demand.
 
 Usage:
-    .venv/Scripts/python.exe scripts/enqueue_shorts_variants.py <video_id> [<video_id> ...]
+    .venv/Scripts/python.exe -m scripts.enqueue_shorts_variants <video_id> [<video_id> ...]
 """
 from __future__ import annotations
 
 import sys
 
 from app import db
-
-PROFILES: list[tuple[str, dict]] = [
-    ("Standart", {"cut_silence": True, "face_crop": True, "music": True, "effects": True, "captions": True, "long_form": False}),
-    ("Sade (efektsiz, muziksiz)", {"cut_silence": True, "face_crop": True, "music": False, "effects": False, "captions": True, "long_form": False}),
-    ("Muzikli, efektsiz", {"cut_silence": True, "face_crop": True, "music": True, "effects": False, "captions": True, "long_form": False}),
-    ("Efektli, muziksiz", {"cut_silence": True, "face_crop": True, "music": False, "effects": True, "captions": True, "long_form": False}),
-    ("Sabit kadraj (yuz takibi kapali)", {"cut_silence": True, "face_crop": False, "music": True, "effects": True, "captions": True, "long_form": False}),
-]
+from app.pipeline.variant_profiles import SHORTS_VARIANT_PROFILES as PROFILES
 
 
 def main() -> None:

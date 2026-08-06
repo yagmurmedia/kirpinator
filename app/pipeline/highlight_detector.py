@@ -4,18 +4,32 @@ v1 is intentionally simple and deterministic, per spec — it can be swapped for
 a learned model later without touching the rest of the pipeline, since callers
 only depend on the Highlight dataclass shape.
 
-Two independent signals, merged:
+Three independent signals, merged:
   1. Audio energy peaks (RMS in dB) well above the clip's local baseline —
      catches laughter, shouting, sudden excited reactions.
   2. Turkish exclamation / excitement keyword spotting on the transcript.
+  3. Visual scene-cut detection (PySceneDetect, local/free) — a shot change
+     (new angle, someone new steps in, the camera moves to something new)
+     often marks a moment worth noticing even when it's audio-quiet, which
+     the first two signals miss entirely on their own.
 """
 from __future__ import annotations
 
+import logging
 import subprocess
 
 import numpy as np
 
 from app.models import Highlight, TranscriptSegment
+
+logger = logging.getLogger(__name__)
+
+# Deliberately lower than every other signal's confidence (loud_peak=0.6,
+# exclaim=0.5, keyword=0.8) — a scene cut alone is a weaker, supplementary
+# signal, not a standalone "this is definitely a highlight" indicator. Stays
+# well under effects.py/sfx.py's ~0.9 top-tier threshold so a routine camera
+# cut never triggers the big callout/meme-boom treatment on its own.
+SCENE_CHANGE_CONFIDENCE = 0.4
 
 SAMPLE_RATE = 16000
 WINDOW_S = 0.25
@@ -105,7 +119,34 @@ def detect_keyword_highlights(segments: list[TranscriptSegment]) -> list[Highlig
     return highlights
 
 
+def detect_scene_changes(path: str) -> list[Highlight]:
+    try:
+        from scenedetect import ContentDetector, detect
+    except ImportError:
+        return []
+    try:
+        scene_list = detect(path, ContentDetector())
+    except Exception:
+        # Never let a scene-detection hiccup (corrupt frame, codec quirk)
+        # take down the whole pipeline over what's just a bonus signal.
+        logger.exception("Scene-change detection failed for %s; skipping", path)
+        return []
+    # scene_list[i] is (start, end) for scene i; skip the first scene's start
+    # (always t=0 — the start of the video, not an actual cut).
+    return [
+        Highlight(t=start.seconds, kind="scene_change", label="scene change", confidence=SCENE_CHANGE_CONFIDENCE)
+        for start, _end in scene_list[1:]
+    ]
+
+
 def detect_highlights(video_path: str, segments: list[TranscriptSegment]) -> list[Highlight]:
+    # Deliberately audio+keyword only, not scene changes: this runs on the
+    # already-cropped video to drive effects.py/sfx.py, and a bare scene cut
+    # is too weak a signal on its own to ever earn a visual/sound effect
+    # (see detect_scene_changes' confidence note) — including it here would
+    # just be a second full scene-detection pass for no visible outcome.
+    # Scene changes are used once, upstream, purely to help pick which
+    # content survives cutting (see pipeline.py's pre_highlights).
     highlights = detect_audio_peaks(video_path) + detect_keyword_highlights(segments)
     highlights.sort(key=lambda h: h.t)
 
