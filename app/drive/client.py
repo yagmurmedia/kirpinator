@@ -66,7 +66,12 @@ def poll_and_queue_new_videos() -> list[dict]:
         if not page_token:
             break
 
-    for row in new_rows:
+    # Also retry any video still sitting in 'discovered' without a local
+    # file — covers both the rows just created above and ones left over
+    # from a previous download that never finished (e.g. an app restart
+    # mid-download resets it back to 'discovered', see recover_stuck_videos).
+    to_download = [r for r in db.list_videos(status="discovered") if not r.get("local_source_path")]
+    for row in to_download:
         try:
             download_video(row["id"], row["drive_file_id"], row["source_filename"])
         except Exception as exc:  # noqa: BLE001 - keep polling even if one file fails

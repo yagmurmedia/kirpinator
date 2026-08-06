@@ -44,6 +44,16 @@ def _process_one_queued() -> bool:
         process_video(video["id"])
     except Exception:
         logger.exception("Processing failed for %s", video["id"])
+        # process_video only sets status='failed' itself once its own main
+        # try block starts — a failure before that (e.g. a missing source
+        # file) never touches status. Left alone, the video stays 'queued'
+        # forever and _process_one_queued picks it right back up next
+        # iteration with zero backoff: a real, previously-hit busy-loop that
+        # starves every other queued video (and the variant backlog) of a
+        # turn. Force it to 'failed' here as a backstop regardless of cause.
+        current = db.get_video(video["id"])
+        if current and current["status"] == "queued":
+            db.set_status(video["id"], "failed", error="Processing failed before it could start — see server logs")
     return True
 
 

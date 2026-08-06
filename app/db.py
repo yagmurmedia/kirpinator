@@ -134,31 +134,56 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE videos ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
 
 
-# Only 'downloading'/'processing' auto-resume as 'queued' — both are safe to
-# redo from scratch (idempotent: re-download overwrites, re-processing
-# overwrites work_dir). 'uploading' is deliberately NOT auto-reset: if the
-# app died right after YouTube actually accepted the upload but before we
-# recorded that, blindly reprocessing and re-approving could publish a
-# duplicate. That case needs a human to check YouTube Studio first, so it's
-# left as-is and simply visible as a stuck video in the dashboard.
-_IN_FLIGHT_STATUSES = ("downloading", "processing")
+# 'processing' auto-resumes straight to 'queued' — safe to redo from scratch,
+# the source file it needs is already downloaded (idempotent: reprocessing
+# just overwrites work_dir). 'downloading' is NOT safe to bounce straight to
+# 'queued': that used to happen here and it's a real bug that shipped and bit
+# a real video — 'queued' means "go straight to editing", so a video whose
+# download was interrupted (local_source_path still None) got picked up by
+# the worker, immediately raised FileNotFoundError before its status could
+# change, and stayed 'queued' forever — a zero-delay busy-loop, since
+# _process_one_queued reports "did work" every iteration even on failure, so
+# the worker's poll-interval backoff never kicked in and nothing else (any
+# other queued video, the variant backlog) ever got a turn. 'downloading'
+# instead resets to 'discovered', so poll_and_queue_new_videos's retry pass
+# (see app/drive/client.py) re-attempts the actual download on the next poll.
+# 'uploading' is deliberately NOT auto-reset: if the app died right after
+# YouTube actually accepted the upload but before we recorded that, blindly
+# reprocessing and re-approving could publish a duplicate. That case needs a
+# human to check YouTube Studio first, so it's left as-is and simply visible
+# as a stuck video in the dashboard.
+_IN_FLIGHT_PROCESSING = ("processing",)
+_IN_FLIGHT_DOWNLOADING = ("downloading",)
 
 
 def recover_stuck_videos() -> list[str]:
     with get_conn() as conn:
-        rows = conn.execute(
-            f"SELECT id FROM videos WHERE status IN ({','.join('?' * len(_IN_FLIGHT_STATUSES))})",
-            _IN_FLIGHT_STATUSES,
+        proc_rows = conn.execute(
+            f"SELECT id FROM videos WHERE status IN ({','.join('?' * len(_IN_FLIGHT_PROCESSING))})",
+            _IN_FLIGHT_PROCESSING,
         ).fetchall()
-        ids = [r["id"] for r in rows]
-        if ids:
+        proc_ids = [r["id"] for r in proc_rows]
+        if proc_ids:
             conn.executemany(
                 "UPDATE videos SET status = 'queued', updated_at = ? WHERE id = ?",
-                [(time.time(), vid) for vid in ids],
+                [(time.time(), vid) for vid in proc_ids],
             )
-    for vid in ids:
+
+        dl_rows = conn.execute(
+            f"SELECT id FROM videos WHERE status IN ({','.join('?' * len(_IN_FLIGHT_DOWNLOADING))})",
+            _IN_FLIGHT_DOWNLOADING,
+        ).fetchall()
+        dl_ids = [r["id"] for r in dl_rows]
+        if dl_ids:
+            conn.executemany(
+                "UPDATE videos SET status = 'discovered', updated_at = ? WHERE id = ?",
+                [(time.time(), vid) for vid in dl_ids],
+            )
+    for vid in proc_ids:
         log_event(vid, "pipeline", "Resumed after interrupted run (app restart)")
-    return ids
+    for vid in dl_ids:
+        log_event(vid, "drive", "Download was interrupted by app restart — will retry")
+    return proc_ids + dl_ids
 
 
 def new_id() -> str:
