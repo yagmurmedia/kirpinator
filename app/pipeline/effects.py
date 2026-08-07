@@ -1,34 +1,21 @@
 """Turns Highlight events into concrete ffmpeg filter fragments and applies them.
 
-Deliberately restrained: a single subtle color-pop (a brief saturation/hue
-lift, no brightness spike, no edge darkening) plus a bold text callout for
-genuine highlights. Earlier versions cycled through a brightness/contrast
-"flash" and a vignette-style edge darkening on every loud moment — repeated
-user feedback called that out by name as looking amateurish ("sadece flash
-efekt... siyah gölge"), so both were dropped rather than tuned again. The
-"professional" read now comes from real crossfade transitions between cuts
-(see cutter.py) and precise callouts on true highlights, not full-frame
-screen effects.
-
-This is a simple, independently-gated `enable='between(t,...)'` filter with
-no shared/combined expression. A real ffmpeg build crash (access violation)
-was hit and confirmed on a real render while an earlier version of this
-module tried a single combined time-varying zoom expression (`scale`
-with `eval=frame`) — it reproduced consistently for specific highlight
-timing patterns regardless of how few highlights were combined, so that
-whole approach was pulled rather than chasing an unbounded-risk ffmpeg bug.
-Simple per-highlight filters like this one have run reliably across many
-real video renders.
+Text callouts only, on genuine highlights — no full-frame screen effect at
+all. Earlier versions tried a brightness/contrast "flash" + vignette-style
+edge darkening, then a lighter hue/saturation color-pop as a replacement —
+both were explicitly called out and rejected ("ışık patlaması yapan ve arka
+planda renk değiştiren efekti komple sil... düzgün başka efekt yoksa
+ekleme"): no invented substitute, so ordinary loud/exclaim moments get no
+visual effect at all now. The "professional" read comes from real crossfade
+transitions between cuts (see cutter.py) and precise callouts on true
+highlights (top-tier moments, keyword hits, protected/must-not-miss
+moments) — not full-frame screen effects on every loud beat.
 """
 from __future__ import annotations
 
 import subprocess
 
 from app.models import Highlight
-
-CHROMA_DURATION_S = 0.16
-CHROMA_SATURATION = 2.4
-CHROMA_HUE_DEGREES = 25
 
 STICKER_DURATION_S = 1.3
 FONT_CANDIDATES = [
@@ -41,15 +28,12 @@ FONT_CANDIDATES = [
 # "pop" just as well without the risk of a broken-looking glyph.
 
 # A very long, highlight-heavy video chains a lot of these filters together;
-# kept modest as a sanity cap on total command-line/graph size even though
-# these simple per-highlight filters haven't shown the crash the combined
-# zoom expression did.
+# kept modest as a sanity cap on total command-line/graph size.
 MAX_VISUAL_EFFECT_HIGHLIGHTS = 20
 
 # A long video can rack up hundreds of highlights (a 13-minute source hit 298
-# in practice) — giving every single one the same small punch reads as flat.
-# The handful of genuinely highest-confidence moments get a distinct callout
-# label on top of the color pop instead of just another beat in a long,
+# in practice) — the handful of genuinely highest-confidence moments get a
+# distinct callout label ("İZLE") instead of just another beat in a long,
 # uniform sequence.
 TOP_TIER_COUNT = 4
 TOP_TIER_LABEL = "İZLE"
@@ -58,14 +42,6 @@ TOP_TIER_STICKER_DURATION_S = 1.0
 
 def _escape_drawtext(text: str) -> str:
     return text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
-
-
-def _chroma_filter(h: Highlight) -> str:
-    start, end = h.t, h.t + CHROMA_DURATION_S
-    return (
-        f"hue=h={CHROMA_HUE_DEGREES}:s={CHROMA_SATURATION}"
-        f":enable='between(t,{start:.3f},{end:.3f})'"
-    )
 
 
 def _sticker_filter(h: Highlight, font_path: str, label: str | None = None, duration: float = STICKER_DURATION_S) -> str:
@@ -91,8 +67,8 @@ def build_effects_filter(
 
     # The genuinely best moments (by confidence) across the *entire* highlight
     # list — not just whatever survives the MAX_VISUAL_EFFECT_HIGHLIGHTS cap
-    # below — get a distinct, stronger combo treatment instead of blending
-    # into a long run of identical small punches.
+    # below — get the distinct "İZLE" callout instead of blending into a
+    # long run of identical keyword stickers.
     ranked = sorted(highlights, key=lambda h: h.confidence, reverse=True)
     top_tier = ranked[:TOP_TIER_COUNT]
     top_tier_ids = {id(h) for h in top_tier}
@@ -101,21 +77,20 @@ def build_effects_filter(
     if len(visual) > MAX_VISUAL_EFFECT_HIGHLIGHTS:
         visual = sorted(visual, key=lambda h: h.confidence, reverse=True)[:MAX_VISUAL_EFFECT_HIGHLIGHTS]
     visual_ids = {id(h) for h in visual}
-    # Guarantee the top-tier moments always get *something* even if the cap
-    # above would otherwise have excluded them.
+    # Guarantee the top-tier moments always get their callout even if the
+    # cap above would otherwise have excluded them.
     visual = list(visual) + [h for h in top_tier if id(h) not in visual_ids]
     visual.sort(key=lambda h: h.t)
 
     filters = []
     for h in visual:
         if id(h) in top_tier_ids:
-            filters.append(_chroma_filter(h))
             filters.append(_sticker_filter(h, font_path, label=TOP_TIER_LABEL, duration=TOP_TIER_STICKER_DURATION_S))
-            continue
-        if h.kind in ("loud_peak", "exclaim"):
-            filters.append(_chroma_filter(h))
         elif h.kind in ("keyword", "protected"):
             filters.append(_sticker_filter(h, font_path))
+        # loud_peak/exclaim highlights that aren't top-tier get no visual
+        # effect at all — deliberately: no substitute screen effect invented
+        # to replace the removed flash/vignette/color-pop.
     return ",".join(filters) if filters else None
 
 

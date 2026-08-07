@@ -263,15 +263,17 @@ tests/                          saf mantık birim testleri
 ## Bilinen sınırlamalar / geliştirmeye açık
 
 - Vurgu/efekt tespiti kural tabanlı (ses tepe noktası + Türkçe ünlem
-  kelimeleri); istenirse öğrenilmiş bir modelle değiştirilebilir —
-  `app/pipeline/highlight_detector.py`'deki `Highlight` arayüzü sabit
-  tutulduğu sürece geri kalan pipeline'ı etkilemez. Her vurgulu anda dönüşümlü
-  olarak parlama/kontrast atışı veya vignette (odak) atışı, anahtar
-  kelimelerde metin çıkartma, ve sentezlenmiş (100% özgün, telifsiz)
-  "pop/ding/boing" ses efektleri var — bkz. `app/pipeline/effects.py`,
-  `app/pipeline/sfx.py`. (Bir zoom-punch efekti de denendi ama belirli zaman
-  damgalarında ffmpeg'i çökerttiği gerçek bir render'da doğrulandığı için,
-  güvenilirlik adına geri çekildi.)
+  kelimeleri + görsel sahne kesimi); istenirse öğrenilmiş bir modelle
+  değiştirilebilir — `app/pipeline/highlight_detector.py`'deki `Highlight`
+  arayüzü sabit tutulduğu sürece geri kalan pipeline'ı etkilemez. Sadece
+  gerçek önemli anlarda (en yüksek güvenilirlikli anlar, anahtar kelime
+  yakalanan anlar, "kaçırma" gibi korunmuş anlar) metin çıkartması var —
+  bkz. `app/pipeline/effects.py`. Tam ekran parlama/vignette/renk-değişimi
+  efektleri ve sentezlenmiş "pop/ding/boing" ses efektleri denendi, kullanıcı
+  geri bildirimiyle amatörce/gereksiz bulunduğu için tamamen kaldırıldı —
+  yerine bir başka görsel/ses efekti eklenmedi. (Bir zoom-punch efekti de
+  ayrıca denendi ama belirli zaman damgalarında ffmpeg'i çökerttiği gerçek
+  bir render'da doğrulandığı için, güvenilirlik adına geri çekildi.)
 - **Gerçek "meme" klip ekleme yapılmıyor** — internetteki viral meme klipleri
   (film/dizi/başka içerik üreticisi sahneleri) neredeyse istisnasız telifli
   olduğu için, kanalın telif almasına yol açacak bir özellik eklemedim. Bunun

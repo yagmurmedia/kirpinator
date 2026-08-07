@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 # Deliberately lower than every other signal's confidence (loud_peak=0.6,
 # exclaim=0.5, keyword=0.8) — a scene cut alone is a weaker, supplementary
 # signal, not a standalone "this is definitely a highlight" indicator. Stays
-# well under effects.py/sfx.py's ~0.9 top-tier threshold so a routine camera
-# cut never triggers the big callout/meme-boom treatment on its own.
+# well under effects.py's ~0.9 top-tier threshold so a routine camera cut
+# never triggers the "İZLE" callout on its own.
 SCENE_CHANGE_CONFIDENCE = 0.4
 
 SAMPLE_RATE = 16000
@@ -141,10 +141,10 @@ def detect_scene_changes(path: str) -> list[Highlight]:
 
 def detect_highlights(video_path: str, segments: list[TranscriptSegment]) -> list[Highlight]:
     # Deliberately audio+keyword only, not scene changes: this runs on the
-    # already-cropped video to drive effects.py/sfx.py, and a bare scene cut
-    # is too weak a signal on its own to ever earn a visual/sound effect
-    # (see detect_scene_changes' confidence note) — including it here would
-    # just be a second full scene-detection pass for no visible outcome.
+    # already-cropped video to drive effects.py's callouts, and a bare scene
+    # cut is too weak a signal on its own to ever earn one (see
+    # detect_scene_changes' confidence note) — including it here would just
+    # be a second full scene-detection pass for no visible outcome.
     # Scene changes are used once, upstream, purely to help pick which
     # content survives cutting (see pipeline.py's pre_highlights).
     highlights = detect_audio_peaks(video_path) + detect_keyword_highlights(segments)

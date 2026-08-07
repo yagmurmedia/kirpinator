@@ -29,7 +29,6 @@ from app.pipeline import (
     probe,
     protected_moments,
     segment_planner,
-    sfx,
     silence,
     transcribe as transcribe_mod,
 )
@@ -222,11 +221,6 @@ def process_video(video_id: str) -> None:
             effects.render_effects(cropped_path, effected_path, highlights, target_w, target_h)
             current_path = effected_path
             db.log_event(video_id, "effects", f"{len(highlights)} highlights")
-
-            sfx_path = str(work_dir / "03c_sfx.mp4")
-            sfx.apply_sound_effects(current_path, sfx_path, highlights)
-            current_path = sfx_path
-            db.log_event(video_id, "sfx", "Added synthesized comedic sound effects")
         else:
             highlights = []
 

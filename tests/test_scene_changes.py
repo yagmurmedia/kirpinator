@@ -43,7 +43,7 @@ def test_missing_file_fails_soft_returns_empty_list():
 def test_confidence_stays_below_every_other_signal_and_top_tier_threshold():
     # Documents the deliberate design: a bare scene cut must never outrank a
     # real audio/keyword highlight, and must stay under the ~0.9 top-tier
-    # threshold in effects.py/sfx.py so a routine camera cut alone can never
-    # trigger the big callout / meme-boom treatment.
+    # threshold in effects.py so a routine camera cut alone can never
+    # trigger the "İZLE" callout.
     assert SCENE_CHANGE_CONFIDENCE < 0.5  # below exclaim (0.5), loud_peak (0.6), keyword (0.8)
     assert SCENE_CHANGE_CONFIDENCE < 0.9
