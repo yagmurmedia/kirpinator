@@ -22,6 +22,7 @@
         <div class="thumb-placeholder">{{ v.orientation or "?" }}</div>
       {% endif %}
       <span class="badge">{{ v.status }}</span>
+      {% if numbers and numbers.get(v.id) %}<span class="badge video-number">#{{ numbers[v.id] }}</span>{% endif %}
     </div>
     <div class="meta">
       <div class="title">{{ v.title or v.source_filename }}</div>

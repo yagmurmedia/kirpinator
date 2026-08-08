@@ -254,6 +254,16 @@ def list_videos(status: str | None = None) -> list[dict[str, Any]]:
     return [row_to_dict(r) for r in rows]
 
 
+def get_display_numbers() -> dict[str, int]:
+    """A stable "#1, #2, #3..." label per video, oldest first, so a video's
+    number never shifts as newer ones arrive — used so the reviewer and the
+    assistant can refer to "video 3" instead of an opaque id.
+    """
+    with get_conn() as conn:
+        rows = conn.execute("SELECT id FROM videos ORDER BY created_at ASC").fetchall()
+    return {row["id"]: i + 1 for i, row in enumerate(rows)}
+
+
 def update_video(video_id: str, **fields: Any) -> None:
     if not fields:
         return
@@ -422,6 +432,16 @@ def enqueue_variants(video_id: str, profiles: list[tuple[str, dict]]) -> None:
                 for i, (name, overrides) in enumerate(profiles)
             ],
         )
+
+
+def clear_variant_queue(video_id: str) -> int:
+    """Drops every not-yet-started variant-queue row for `video_id` (e.g. to
+    replace a stale batch with a newer profile set) — does not touch a
+    variant already popped and mid-render. Returns how many rows were removed.
+    """
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM variant_queue WHERE video_id = ?", (video_id,))
+        return cur.rowcount
 
 
 def pop_next_variant() -> dict[str, Any] | None:

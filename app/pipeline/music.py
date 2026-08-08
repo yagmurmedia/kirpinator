@@ -97,8 +97,10 @@ def apply_music_if_available(
     output_path: str,
     segments: list[TranscriptSegment],
     highlights: list[Highlight],
+    *,
+    mood_override: str | None = None,
 ) -> tuple[str, MusicTrack | None]:
-    mood = classify_mood(segments, highlights)
+    mood = mood_override if mood_override in MOOD_KEYWORDS else classify_mood(segments, highlights)
     track = select_track(mood)
     if track is None:
         return video_path, None

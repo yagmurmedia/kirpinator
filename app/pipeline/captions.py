@@ -56,7 +56,7 @@ def build_ass_captions(
     video_width: int,
     video_height: int,
 ) -> str:
-    fontsize = max(28, int(video_height * 0.055))
+    fontsize = max(24, int(video_height * 0.048))  # trimmed down 1-2 sizes per feedback
     outline = max(2, int(fontsize * 0.08))
     margin_v = int(video_height * 0.12)
 

@@ -70,7 +70,10 @@ def on_startup() -> None:
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     videos = db.list_videos()
-    return templates.TemplateResponse("dashboard.html", {"request": request, "videos": videos})
+    numbers = db.get_display_numbers()
+    return templates.TemplateResponse(
+        "dashboard.html", {"request": request, "videos": videos, "numbers": numbers}
+    )
 
 
 @app.get("/video/{video_id}", response_class=HTMLResponse)
@@ -81,9 +84,13 @@ def video_detail(request: Request, video_id: str):
     events = db.get_events(video_id)
     versions = db.list_versions(video_id)
     toggles = VideoToggles.from_dict(video.get("toggles"))
+    display_number = db.get_display_numbers().get(video_id)
     return templates.TemplateResponse(
         "video_detail.html",
-        {"request": request, "video": video, "events": events, "toggles": toggles, "versions": versions},
+        {
+            "request": request, "video": video, "events": events, "toggles": toggles,
+            "versions": versions, "display_number": display_number,
+        },
     )
 
 

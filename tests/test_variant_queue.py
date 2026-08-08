@@ -55,3 +55,23 @@ def test_list_variant_queue_filters_by_video(tmp_path, monkeypatch):
     assert len(db.list_variant_queue(v1["id"])) == 2
     assert len(db.list_variant_queue(v2["id"])) == 1
     assert len(db.list_variant_queue()) == 3
+
+
+def test_clear_variant_queue_only_affects_that_video(tmp_path, monkeypatch):
+    _fresh_db(tmp_path, monkeypatch)
+    v1 = db.create_video(drive_file_id="e", source_filename="e.mp4")
+    v2 = db.create_video(drive_file_id="f", source_filename="f.mp4")
+    db.enqueue_variants(v1["id"], [("A", {}), ("B", {})])
+    db.enqueue_variants(v2["id"], [("C", {})])
+
+    removed = db.clear_variant_queue(v1["id"])
+
+    assert removed == 2
+    assert db.list_variant_queue(v1["id"]) == []
+    assert len(db.list_variant_queue(v2["id"])) == 1
+
+
+def test_clear_variant_queue_on_empty_video_returns_zero(tmp_path, monkeypatch):
+    _fresh_db(tmp_path, monkeypatch)
+    v = db.create_video(drive_file_id="g", source_filename="g.mp4")
+    assert db.clear_variant_queue(v["id"]) == 0

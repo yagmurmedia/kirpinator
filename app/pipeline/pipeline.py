@@ -21,7 +21,6 @@ from app.pipeline import (
     captions as captions_mod,
     cutter,
     crop_render,
-    effects,
     face_tracker,
     highlight_detector,
     music,
@@ -137,13 +136,27 @@ def process_video(video_id: str) -> None:
             + highlight_detector.detect_keyword_highlights(segments)
             + scene_changes
         )
-        protected_segments = protected_moments.find_protected_segments(
+        # Two independent protection sources, merged: an explicit per-video
+        # "don't cut this" instruction, and — running on every video
+        # unconditionally, no instruction needed — an automatic guess at the
+        # video's actual payoff moment and opening greeting. The system
+        # should recognize on its own that "the tooth coming out" is the
+        # whole point of that video, not rely on someone remembering to
+        # type "kaçırma" every time.
+        instructed_protected = protected_moments.find_protected_segments(
             toggles.custom_instructions, segments
         )
-        if protected_segments:
+        auto_protected = protected_moments.find_auto_topic_segments(segments)
+        protected_segments = list({id(s): s for s in instructed_protected + auto_protected}.values())
+        if instructed_protected:
             db.log_event(
                 video_id, "cut_plan",
-                f"Protected from cutting per instruction: {[s.text[:40] for s in protected_segments]}",
+                f"Protected from cutting per instruction: {[s.text[:40] for s in instructed_protected]}",
+            )
+        if auto_protected:
+            db.log_event(
+                video_id, "cut_plan",
+                f"Auto-protected as the video's core topic/greeting: {[s.text[:40] for s in auto_protected]}",
             )
         keep_ranges = segment_planner.select_best_ranges(
             keep_ranges, pre_highlights, max_duration,
@@ -204,23 +217,20 @@ def process_video(video_id: str) -> None:
         crop_render.render_crop(cut_path, cropped_path, keyframes, target_w, target_h, work_dir=str(work_dir))
         db.log_event(video_id, "crop", f"face_crop={toggles.face_crop} -> {target_w}x{target_h}")
 
-        # 7. Highlights + effects
+        # 7. Highlight detection — no visual overlay is ever rendered from
+        # this anymore (flash/vignette/color-pop/text-callout were all tried
+        # and explicitly rejected as looking AI-made rather than like a
+        # professional YouTuber's edit); highlights now exist purely as a
+        # signal for music mood selection below.
         current_path = cropped_path
         if toggles.effects:
             highlights = highlight_detector.detect_highlights(cropped_path, mapped_segments)
-            # Moments the semantic protected-moment matcher confirmed (e.g. "the
-            # tooth is coming out") always get top-tier visual emphasis too —
-            # more reliable than the generic keyword list, which is deliberately
-            # kept narrow to avoid false-positiving on ordinary narration.
             protected_texts = {s.text for s in protected_segments}
             for seg in mapped_segments:
                 if seg.text in protected_texts:
                     highlights.append(Highlight(t=seg.start, kind="protected", label=seg.text[:24], confidence=0.95))
             highlights.sort(key=lambda h: h.t)
-            effected_path = str(work_dir / "03_effects.mp4")
-            effects.render_effects(cropped_path, effected_path, highlights, target_w, target_h)
-            current_path = effected_path
-            db.log_event(video_id, "effects", f"{len(highlights)} highlights")
+            db.log_event(video_id, "effects", f"{len(highlights)} highlights detected (music-mood signal only)")
         else:
             highlights = []
 
@@ -237,7 +247,8 @@ def process_video(video_id: str) -> None:
         if toggles.music:
             with_music_path = str(work_dir / "04_music.mp4")
             current_path, track = music.apply_music_if_available(
-                current_path, with_music_path, mapped_segments, highlights
+                current_path, with_music_path, mapped_segments, highlights,
+                mood_override=toggles.music_mood,
             )
             db.log_event(video_id, "music", track.mood if track else "no track available")
         else:

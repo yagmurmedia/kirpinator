@@ -82,6 +82,11 @@ class VideoToggles:
     long_form: bool = False  # False = YouTube Shorts (<=~60s); True = regular long-form video
     made_for_kids: bool | None = None  # None => use channel default
     custom_instructions: str = ""
+    # None => auto-classify from transcript/highlights (app.pipeline.music);
+    # set to force a specific mood ("playful"/"funny"/"exciting"/"calm") —
+    # used by the Shorts variant profiles to offer genuinely different music
+    # takes of the same edit instead of just on/off.
+    music_mood: str | None = None
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "VideoToggles":
@@ -95,6 +100,7 @@ class VideoToggles:
             long_form=d.get("long_form", False),
             made_for_kids=d.get("made_for_kids"),
             custom_instructions=d.get("custom_instructions", ""),
+            music_mood=d.get("music_mood"),
         )
 
     def to_dict(self) -> dict:
@@ -107,4 +113,5 @@ class VideoToggles:
             "long_form": self.long_form,
             "made_for_kids": self.made_for_kids,
             "custom_instructions": self.custom_instructions,
+            "music_mood": self.music_mood,
         }
