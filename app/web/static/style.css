@@ -29,6 +29,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px; }
 .badge { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 6px; font-size: 0.75em; text-transform: uppercase; }
 .video-number { left: auto; right: 8px; background: var(--accent); color: #04202b; font-weight: 700; text-transform: none; }
 .badge-lg { font-size: 0.9em; padding: 5px 12px; border-radius: 8px; display: inline-block; margin: 8px 0; }
+.video-id-tag { color: var(--muted); font-size: 0.55em; font-weight: 400; vertical-align: middle; }
 .status-ready_for_review { color: var(--warn); }
 .status-uploaded { color: var(--good); }
 .status-failed { color: var(--bad); }

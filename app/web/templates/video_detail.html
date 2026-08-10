@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}{{ video.title or video.source_filename }} — Kirpinator{% endblock %}
+{% block title %}V{{ video.version or 1 }} — {{ video.title or video.source_filename }} — Kirpinator{% endblock %}
 {% block content %}
 <a href="/" class="back">&larr; Panele dön</a>
-<h1>{% if display_number %}#{{ display_number }} — {% endif %}{{ video.title or video.source_filename }}</h1>
+<h1>V{{ video.version or 1 }} - {{ video.title or video.source_filename }}{% if display_number %} <span class="video-id-tag">#{{ display_number }}</span>{% endif %}</h1>
 <span class="badge badge-lg status-{{ video.status }}">{{ video.status }}</span>
 <span class="badge badge-lg version-badge">V{{ video.version or 1 }}{% if video.variant_label %} — {{ video.variant_label }}{% endif %}</span>
 
