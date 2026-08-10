@@ -40,7 +40,7 @@
     <div class="version-list">
       {% for v in versions %}
       <div class="version-item">
-        <span class="badge">V{{ v.version }}{% if v.profile_name %} — {{ v.profile_name }}{% endif %}</span>
+        <span class="badge-lg version-item-badge">V{{ v.version }}{% if v.profile_name %} — {{ v.profile_name }}{% endif %}</span>
         {% if v.output_path %}
         <video controls playsinline muted class="version-video"
                src="/video/{{ video.id }}/version/{{ v.id }}/stream"></video>
