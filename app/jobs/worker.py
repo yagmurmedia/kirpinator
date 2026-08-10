@@ -1,6 +1,14 @@
 """Background worker: polls Drive for new footage and runs the edit pipeline
 on anything queued, entirely on its own — no user interaction until a video
 reaches 'ready_for_review'.
+
+Two independent threads, not one: process_video() blocks synchronously for
+however long a render takes (hours, for a 4K/HDR source) — if Drive polling
+shared that same loop, a single long render would starve it completely,
+and a video uploaded to Drive mid-render wouldn't be discovered until the
+current one finished, sometimes hours later (confirmed happening in
+practice: a video sat in Drive undetected for 2+ hours during one render).
+Polling now runs on its own timer, unaffected by how long processing takes.
 """
 from __future__ import annotations
 
@@ -16,23 +24,25 @@ logger = logging.getLogger(__name__)
 
 _stop_event = threading.Event()
 _worker_thread: threading.Thread | None = None
-_last_drive_poll = 0.0
+_drive_poll_thread: threading.Thread | None = None
 
 
 def _drive_poll_tick() -> None:
-    global _last_drive_poll
     if not settings.drive_folder_id:
         return
-    now = time.time()
-    if now - _last_drive_poll < settings.drive_poll_interval_seconds:
-        return
-    _last_drive_poll = now
     try:
         from app.drive.client import poll_and_queue_new_videos
 
         poll_and_queue_new_videos()
     except Exception:
         logger.exception("Drive poll failed (will retry next cycle)")
+
+
+def _drive_poll_loop() -> None:
+    logger.info("Drive poll thread started (interval=%ss)", settings.drive_poll_interval_seconds)
+    while not _stop_event.is_set():
+        _drive_poll_tick()
+        _stop_event.wait(settings.drive_poll_interval_seconds)
 
 
 def _process_one_queued() -> bool:
@@ -83,7 +93,6 @@ def _loop() -> None:
     logger.info("Worker started (poll interval=%ss)", settings.worker_poll_interval_seconds)
     while not _stop_event.is_set():
         try:
-            _drive_poll_tick()
             did_work = _process_one_queued()
             if not did_work:
                 did_work = _promote_next_variant()
@@ -100,13 +109,15 @@ def _loop() -> None:
 
 
 def start_background_worker() -> None:
-    global _worker_thread
-    if _worker_thread and _worker_thread.is_alive():
-        return
+    global _worker_thread, _drive_poll_thread
     db.init_db()
     _stop_event.clear()
-    _worker_thread = threading.Thread(target=_loop, name="kirpinator-worker", daemon=True)
-    _worker_thread.start()
+    if not (_worker_thread and _worker_thread.is_alive()):
+        _worker_thread = threading.Thread(target=_loop, name="kirpinator-worker", daemon=True)
+        _worker_thread.start()
+    if not (_drive_poll_thread and _drive_poll_thread.is_alive()):
+        _drive_poll_thread = threading.Thread(target=_drive_poll_loop, name="kirpinator-drive-poll", daemon=True)
+        _drive_poll_thread.start()
 
 
 def stop_background_worker() -> None:
