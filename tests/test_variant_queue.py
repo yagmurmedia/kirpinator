@@ -1,3 +1,5 @@
+import pytest
+
 from app import db
 
 
@@ -75,3 +77,29 @@ def test_clear_variant_queue_on_empty_video_returns_zero(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)
     v = db.create_video(drive_file_id="g", source_filename="g.mp4")
     assert db.clear_variant_queue(v["id"]) == 0
+
+
+def test_low_priority_variants_wait_for_normal_priority_ones_from_any_video(tmp_path, monkeypatch):
+    # Real scenario: video A gets its long-form batch queued low-priority,
+    # then video B (discovered later) gets a normal-priority Shorts batch —
+    # B's Shorts must still be drained before A's long-form takes, since
+    # Shorts are the system-wide priority regardless of enqueue order.
+    _fresh_db(tmp_path, monkeypatch)
+    a = db.create_video(drive_file_id="h", source_filename="h.mp4")
+    b = db.create_video(drive_file_id="i", source_filename="i.mp4")
+
+    db.enqueue_variants(a["id"], [("uzun video: standart", {})], priority="low")
+    db.enqueue_variants(b["id"], [("muziksiz, yuz takipli", {})])  # normal, enqueued after
+
+    first = db.pop_next_variant()
+    second = db.pop_next_variant()
+
+    assert first["video_id"] == b["id"]
+    assert second["video_id"] == a["id"]
+
+
+def test_invalid_priority_rejected(tmp_path, monkeypatch):
+    _fresh_db(tmp_path, monkeypatch)
+    v = db.create_video(drive_file_id="j", source_filename="j.mp4")
+    with pytest.raises(AssertionError):
+        db.enqueue_variants(v["id"], [("X", {})], priority="urgent")

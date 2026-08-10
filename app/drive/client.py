@@ -11,7 +11,8 @@ from googleapiclient.http import MediaIoBaseDownload
 from app import db, settings_store
 from app.config import INCOMING_DIR, settings
 from app.drive.auth import get_credentials
-from app.pipeline.variant_profiles import SHORTS_VARIANT_PROFILES
+from app.pipeline import probe
+from app.pipeline.variant_profiles import LONG_FORM_MIN_DURATION_S, LONG_FORM_VARIANT_PROFILES, SHORTS_VARIANT_PROFILES
 
 logger = logging.getLogger(__name__)
 
@@ -164,9 +165,26 @@ def download_video(video_id: str, drive_file_id: str, filename: str) -> str:
     # so the worker's variant-queue drain (see app.jobs.worker) is what
     # advances it, one profile at a time.
     db.enqueue_variants(video_id, SHORTS_VARIANT_PROFILES)
-    db.set_status(video_id, "discovered")
     db.log_event(
         video_id, "variant",
         f"Queued {len(SHORTS_VARIANT_PROFILES)} Shorts variant profiles for comparison",
     )
+
+    # A source with enough real footage to justify a long-form cut also gets
+    # 3 long-form takes queued — at low priority, so the whole Shorts
+    # backlog (across every video) drains first; Shorts are the priority.
+    try:
+        duration_s = probe.probe_video(str(dest_path)).duration_s
+    except Exception:
+        duration_s = 0.0
+        logger.warning("Couldn't probe duration for %s; skipping long-form check", filename, exc_info=True)
+    if duration_s >= LONG_FORM_MIN_DURATION_S:
+        db.enqueue_variants(video_id, LONG_FORM_VARIANT_PROFILES, priority="low")
+        db.log_event(
+            video_id, "variant",
+            f"Also queued {len(LONG_FORM_VARIANT_PROFILES)} long-form variants "
+            f"({duration_s:.0f}s source) — runs after the Shorts backlog",
+        )
+
+    db.set_status(video_id, "discovered")
     return str(dest_path)

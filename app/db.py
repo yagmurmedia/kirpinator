@@ -427,12 +427,25 @@ def delete_version(video_id: str, version_row_id: str) -> bool:
     return True
 
 
-def enqueue_variants(video_id: str, profiles: list[tuple[str, dict]]) -> None:
+# Pushes a batch far enough into the future (~31.7 years) that it will
+# always sort after every normal-priority entry any video could plausibly
+# accumulate in the meantime — used so an entire class of work (long-form
+# variants) waits for the whole Shorts backlog, across every video, to
+# drain first, not just this one video's own Shorts.
+_LOW_PRIORITY_OFFSET_S = 10**9
+
+
+def enqueue_variants(
+    video_id: str, profiles: list[tuple[str, dict]], *, priority: str = "normal"
+) -> None:
     """Queues a batch of (profile_name, toggle_overrides) pairs for `video_id`.
-    Drained strictly in insertion order by the worker — see pop_next_variant.
+    Drained in position order by the worker (see pop_next_variant) — FIFO by
+    insertion time within a priority tier; priority="low" entries only start
+    once every "normal" entry, from any video, has been drained.
     """
+    assert priority in ("normal", "low")
     with get_conn() as conn:
-        base = time.time()
+        base = time.time() + (_LOW_PRIORITY_OFFSET_S if priority == "low" else 0)
         conn.executemany(
             "INSERT INTO variant_queue (id, video_id, profile_name, toggles_json, position, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
