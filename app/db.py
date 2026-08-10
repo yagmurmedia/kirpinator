@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS videos (
     youtube_video_id TEXT,
     error TEXT,
     version INTEGER NOT NULL DEFAULT 1,
+    variant_label TEXT,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -47,6 +48,7 @@ CREATE TABLE IF NOT EXISTS video_versions (
     output_path TEXT,
     thumbnail_path TEXT,
     title TEXT,
+    profile_name TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (video_id) REFERENCES videos (id)
 );
@@ -132,6 +134,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
     existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(videos)")}
     if "version" not in existing_cols:
         conn.execute("ALTER TABLE videos ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
+    if "variant_label" not in existing_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN variant_label TEXT")
+
+    version_cols = {row["name"] for row in conn.execute("PRAGMA table_info(video_versions)")}
+    if "profile_name" not in version_cols:
+        conn.execute("ALTER TABLE video_versions ADD COLUMN profile_name TEXT")
 
 
 # 'processing' auto-resumes straight to 'queued' — safe to redo from scratch,
@@ -378,13 +386,14 @@ def archive_current_version(video_id: str) -> int | None:
 
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO video_versions (id, video_id, version, output_path, thumbnail_path, title, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO video_versions (id, video_id, version, output_path, thumbnail_path, title, profile_name, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 new_id(), video_id, old_version,
                 str(archived_output) if archived_output else None,
                 str(archived_thumb) if archived_thumb else None,
                 row.get("title"),
+                row.get("variant_label"),
                 time.time(),
             ),
         )

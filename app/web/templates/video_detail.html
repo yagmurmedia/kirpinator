@@ -4,7 +4,7 @@
 <a href="/" class="back">&larr; Panele dön</a>
 <h1>{% if display_number %}#{{ display_number }} — {% endif %}{{ video.title or video.source_filename }}</h1>
 <span class="badge badge-lg status-{{ video.status }}">{{ video.status }}</span>
-<span class="badge badge-lg version-badge">V{{ video.version or 1 }}</span>
+<span class="badge badge-lg version-badge">V{{ video.version or 1 }}{% if video.variant_label %} — {{ video.variant_label }}{% endif %}</span>
 
 <div class="detail-grid">
   <div class="preview-col">
@@ -40,7 +40,7 @@
     <div class="version-list">
       {% for v in versions %}
       <div class="version-item">
-        <span class="badge">V{{ v.version }}</span>
+        <span class="badge">V{{ v.version }}{% if v.profile_name %} — {{ v.profile_name }}{% endif %}</span>
         {% if v.output_path %}
         <video controls playsinline muted class="version-video"
                src="/video/{{ video.id }}/version/{{ v.id }}/stream"></video>

@@ -39,6 +39,26 @@ def test_reprocess_archives_previous_output_and_bumps_version(tmp_path, monkeypa
     assert reloaded["version"] == 2
 
 
+def test_archived_version_captures_the_variant_profile_that_produced_it(tmp_path, monkeypatch):
+    # A video can end up with a dozen+ archived versions from the variant
+    # batch (V1..V10) — without recording which profile produced each one,
+    # they're indistinguishable "V7", "V8"... in the review UI.
+    _fresh_db(tmp_path, monkeypatch)
+    from app import config
+    monkeypatch.setattr(config, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(config, "THUMBNAIL_DIR", tmp_path)
+
+    v = db.create_video(drive_file_id="e", source_filename="e.mp4")
+    out1 = tmp_path / "e_out.mp4"
+    out1.write_bytes(b"first edit")
+    db.update_video(v["id"], output_path=str(out1), variant_label="sakin muzikli, yuz takipli")
+
+    db.archive_current_version(v["id"])
+
+    versions = db.list_versions(v["id"])
+    assert versions[0]["profile_name"] == "sakin muzikli, yuz takipli"
+
+
 def test_delete_version_removes_row_and_file(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)
     from app import config

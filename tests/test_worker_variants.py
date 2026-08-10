@@ -34,6 +34,9 @@ def test_applies_profile_toggles_and_queues_video(tmp_path, monkeypatch):
     # ...without clobbering fields the profile didn't mention.
     assert row["toggles"]["cut_silence"] is True
     assert row["toggles"]["custom_instructions"] == "kaçırma"
+    # And the video is labeled with which profile is now active, so the
+    # version it produces can be identified later.
+    assert row["variant_label"] == "Sade"
 
 
 def test_skips_gracefully_if_video_row_vanishes_after_being_popped(tmp_path, monkeypatch):

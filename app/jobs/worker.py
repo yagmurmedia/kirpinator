@@ -73,7 +73,7 @@ def _promote_next_variant() -> bool:
     if not row:
         return True  # video was deleted since being queued — just drop it
     merged_toggles = {**(row.get("toggles") or {}), **variant["toggles"]}
-    db.update_video(video_id, toggles=merged_toggles)
+    db.update_video(video_id, toggles=merged_toggles, variant_label=variant["profile_name"])
     db.set_status(video_id, "queued")
     db.log_event(video_id, "variant", f"Applying variant profile '{variant['profile_name']}'")
     return True
