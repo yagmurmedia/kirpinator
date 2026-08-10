@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app import db
 from app.config import OUTPUT_DIR, THUMBNAIL_DIR, WORKING_DIR, settings
-from app.models import CropKeyframe, Highlight, VideoToggles
+from app.models import Highlight, VideoToggles
 from app.pipeline import (
     captions as captions_mod,
     cutter,
@@ -36,23 +36,6 @@ from app.pipeline.time_map import build_time_mapper
 from app.youtube.metadata import generate_metadata
 
 logger = logging.getLogger(__name__)
-
-
-def _static_crop_keyframes(source_w: int, source_h: int, target_w: int, target_h: int, duration_s: float) -> list[CropKeyframe]:
-    target_aspect = target_w / target_h
-    source_aspect = source_w / source_h
-    if source_aspect > target_aspect:
-        crop_h = source_h
-        crop_w = int(round(crop_h * target_aspect))
-    else:
-        crop_w = source_w
-        crop_h = int(round(crop_w / target_aspect))
-    x = (source_w - crop_w) // 2
-    y = (source_h - crop_h) // 2
-    return [
-        CropKeyframe(t=0.0, x=x, y=y, w=crop_w, h=crop_h),
-        CropKeyframe(t=duration_s, x=x, y=y, w=crop_w, h=crop_h),
-    ]
 
 
 def _extract_thumbnail(video_path: str, out_path: str, at_s: float) -> str:
@@ -210,8 +193,8 @@ def process_video(video_id: str) -> None:
                 cut_path, cut_info.width, cut_info.height, target_w, target_h, cut_info.duration_s
             )
         else:
-            keyframes = _static_crop_keyframes(
-                cut_info.width, cut_info.height, target_w, target_h, cut_info.duration_s
+            keyframes = face_tracker.build_static_crop_keyframes(
+                cut_path, cut_info.width, cut_info.height, target_w, target_h, cut_info.duration_s
             )
         cropped_path = str(work_dir / "02_cropped.mp4")
         crop_render.render_crop(cut_path, cropped_path, keyframes, target_w, target_h, work_dir=str(work_dir))

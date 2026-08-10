@@ -75,15 +75,8 @@ def _smooth_centers(
     return smoothed
 
 
-def build_crop_path(
-    video_path: str,
-    source_w: int,
-    source_h: int,
-    target_w: int,
-    target_h: int,
-    duration_s: float,
-) -> list[CropKeyframe]:
-    # Crop box: the largest window matching the target aspect ratio that fits inside the source frame.
+def _target_crop_size(source_w: int, source_h: int, target_w: int, target_h: int) -> tuple[int, int]:
+    """The largest window matching the target aspect ratio that fits inside the source frame."""
     target_aspect = target_w / target_h
     source_aspect = source_w / source_h
     if source_aspect > target_aspect:
@@ -92,8 +85,57 @@ def build_crop_path(
     else:
         crop_w = source_w
         crop_h = int(round(crop_w / target_aspect))
-    crop_w = min(crop_w, source_w)
-    crop_h = min(crop_h, source_h)
+    return min(crop_w, source_w), min(crop_h, source_h)
+
+
+def build_static_crop_keyframes(
+    video_path: str,
+    source_w: int,
+    source_h: int,
+    target_w: int,
+    target_h: int,
+    duration_s: float,
+) -> list[CropKeyframe]:
+    """A single fixed crop window for the whole clip — no per-frame panning,
+    unlike build_crop_path's dynamic tracking — but still anchored to where
+    the subject's face actually sat on average across the clip, not the
+    frame's blind geometric center. A subject who isn't centered in the
+    source (common in a phone clip someone else is holding) would otherwise
+    get cropped out of a "static" variant even though a face-tracked one
+    would have kept them in frame the whole time; any cropping loss should
+    come from the surroundings, never from cutting the child out of frame.
+    Falls back to the true geometric center only if no face is ever detected.
+    """
+    crop_w, crop_h = _target_crop_size(source_w, source_h, target_w, target_h)
+
+    detections = _detect_face_centers(video_path, SAMPLE_FPS)
+    if detections:
+        cx_norm = float(np.median([d[1] for d in detections]))
+        cy_norm = float(np.median([d[2] for d in detections]))
+        cx_px = cx_norm * source_w
+        cy_px = cy_norm * source_h
+        x = int(np.clip(cx_px - crop_w / 2, 0, source_w - crop_w))
+        y = int(np.clip(cy_px - crop_h / 2, 0, source_h - crop_h))
+    else:
+        logger.warning("No faces detected in %s — falling back to geometric center crop.", video_path)
+        x = (source_w - crop_w) // 2
+        y = (source_h - crop_h) // 2
+
+    return [
+        CropKeyframe(t=0.0, x=x, y=y, w=crop_w, h=crop_h),
+        CropKeyframe(t=duration_s, x=x, y=y, w=crop_w, h=crop_h),
+    ]
+
+
+def build_crop_path(
+    video_path: str,
+    source_w: int,
+    source_h: int,
+    target_w: int,
+    target_h: int,
+    duration_s: float,
+) -> list[CropKeyframe]:
+    crop_w, crop_h = _target_crop_size(source_w, source_h, target_w, target_h)
 
     detections = _detect_face_centers(video_path, SAMPLE_FPS)
     smoothed = _smooth_centers(detections)
