@@ -70,7 +70,7 @@
         <div class="version-actions">
           {% if v.output_path %}
           <form action="/video/{{ video.id }}/version/{{ v.id }}/approve" method="post"
-                onsubmit="return confirm('V{{ v.version }} - {{ v.profile_name or \'\' }} sürümünü onaylayıp YouTube\'a yüklemek istediğine emin misin?');">
+                onsubmit="return confirm('V{{ v.version }} - {{ v.profile_name or '' }} sürümünü onaylayıp YouTube\'a yüklemek istediğine emin misin?');">
             <button type="submit" class="approve-btn small">✅ Bu versiyonu onayla ve yükle</button>
           </form>
           {% endif %}
