@@ -52,6 +52,25 @@ def _extract_thumbnail(video_path: str, out_path: str, at_s: float) -> str:
     return out_path
 
 
+THUMBNAIL_CANDIDATE_COUNT = 10
+
+
+def _extract_thumbnail_candidates(video_path: str, out_dir: Path, video_id: str, duration_s: float) -> list[str]:
+    """A spread of frames across the clip (not just one middle frame) so the
+    reviewer can pick whichever actually looks best, independent of which
+    edit variant they end up uploading.
+    """
+    margin = max(duration_s * 0.08, 0.1)
+    span = max(duration_s - 2 * margin, 0.1)
+    paths = []
+    for i in range(THUMBNAIL_CANDIDATE_COUNT):
+        at_s = margin + span * i / max(THUMBNAIL_CANDIDATE_COUNT - 1, 1)
+        out_path = str(out_dir / f"{video_id}_thumb_{i}.jpg")
+        _extract_thumbnail(video_path, out_path, at_s=at_s)
+        paths.append(out_path)
+    return paths
+
+
 def process_video(video_id: str) -> None:
     row = db.get_video(video_id)
     if row is None:
@@ -258,10 +277,14 @@ def process_video(video_id: str) -> None:
         output_path = str(OUTPUT_DIR / f"{video_id}.mp4")
         shutil.copyfile(current_path, output_path)
 
-        # 10. Thumbnail
+        # 10. Thumbnail — a default (middle-frame) plus a spread of candidate
+        # frames the reviewer can pick from independent of which edit
+        # variant they end up uploading (see selected_thumbnail_path).
         thumb_path = str(THUMBNAIL_DIR / f"{video_id}.jpg")
         final_info = probe.probe_video(output_path)
         _extract_thumbnail(output_path, thumb_path, at_s=min(1.0, final_info.duration_s / 2))
+        candidate_thumbs = _extract_thumbnail_candidates(output_path, THUMBNAIL_DIR, video_id, final_info.duration_s)
+        db.log_event(video_id, "pipeline", f"Generated {len(candidate_thumbs)} thumbnail candidates")
 
         # 11. Metadata
         made_for_kids = (
@@ -273,6 +296,8 @@ def process_video(video_id: str) -> None:
             video_id,
             output_path=output_path,
             thumbnail_path=thumb_path,
+            thumbnail_candidates=candidate_thumbs,
+            selected_thumbnail_path=None,  # reset — new render, new candidate set
             title=meta.title,
             description=meta.description,
             tags=meta.tags,

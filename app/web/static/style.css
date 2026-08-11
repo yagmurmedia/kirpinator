@@ -54,11 +54,22 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px; }
 .delete-btn:hover { background: var(--bad); color: #fff; }
 .delete-btn.small { padding: 5px 10px; font-size: 0.85em; margin-top: 6px; }
 
+.thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin: 10px 0 20px; }
+.thumb-candidate { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; text-align: center; }
+.thumb-candidate.selected { border-color: var(--good); }
+.thumb-candidate img { width: 100%; aspect-ratio: 9/16; object-fit: cover; display: block; }
+.thumb-candidate form { padding: 6px; }
+.thumb-candidate-btn { width: 100%; padding: 6px; font-size: 0.78em; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }
+.thumb-candidate-btn:hover { border-color: var(--accent); color: var(--accent); }
+.thumb-candidate-badge { display: block; font-size: 0.78em; color: var(--good); font-weight: 600; padding: 6px 0; }
+
 .version-badge { background: var(--panel); border: 1px solid var(--border); color: var(--muted); margin-left: 8px; }
 .version-list { display: flex; flex-direction: column; gap: 14px; }
 .version-item { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
 .version-item-badge { display: block; width: fit-content; background: var(--accent); color: #04202b; font-weight: 700; margin: 0 0 8px; }
 .version-video { width: 100%; max-height: 260px; background: #000; border-radius: 6px; margin-top: 6px; display: block; }
+.version-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.approve-btn.small { padding: 5px 10px; font-size: 0.85em; margin-top: 0; }
 
 .events { list-style: none; padding: 0; font-size: 0.85em; color: var(--muted); max-height: 300px; overflow-y: auto; }
 .events li { padding: 4px 0; border-bottom: 1px solid var(--border); }

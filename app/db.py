@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS videos (
     transcript_json TEXT,
     output_path TEXT,
     thumbnail_path TEXT,
+    thumbnail_candidates_json TEXT,
+    selected_thumbnail_path TEXT,
     title TEXT,
     description TEXT,
     tags_json TEXT,
@@ -48,6 +50,8 @@ CREATE TABLE IF NOT EXISTS video_versions (
     output_path TEXT,
     thumbnail_path TEXT,
     title TEXT,
+    description TEXT,
+    tags_json TEXT,
     profile_name TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (video_id) REFERENCES videos (id)
@@ -136,10 +140,18 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE videos ADD COLUMN version INTEGER NOT NULL DEFAULT 1")
     if "variant_label" not in existing_cols:
         conn.execute("ALTER TABLE videos ADD COLUMN variant_label TEXT")
+    if "thumbnail_candidates_json" not in existing_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN thumbnail_candidates_json TEXT")
+    if "selected_thumbnail_path" not in existing_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN selected_thumbnail_path TEXT")
 
     version_cols = {row["name"] for row in conn.execute("PRAGMA table_info(video_versions)")}
     if "profile_name" not in version_cols:
         conn.execute("ALTER TABLE video_versions ADD COLUMN profile_name TEXT")
+    if "description" not in version_cols:
+        conn.execute("ALTER TABLE video_versions ADD COLUMN description TEXT")
+    if "tags_json" not in version_cols:
+        conn.execute("ALTER TABLE video_versions ADD COLUMN tags_json TEXT")
 
 
 # 'processing' auto-resumes straight to 'queued' — safe to redo from scratch,
@@ -200,7 +212,7 @@ def new_id() -> str:
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     d = dict(row)
-    for json_field in ("toggles_json", "transcript_json", "tags_json"):
+    for json_field in ("toggles_json", "transcript_json", "tags_json", "thumbnail_candidates_json"):
         if json_field in d and d[json_field]:
             with contextlib.suppress(json.JSONDecodeError):
                 d[json_field[: -len("_json")]] = json.loads(d[json_field])
@@ -275,7 +287,7 @@ def get_display_numbers() -> dict[str, int]:
 def update_video(video_id: str, **fields: Any) -> None:
     if not fields:
         return
-    for json_field in ("toggles", "transcript", "tags"):
+    for json_field in ("toggles", "transcript", "tags", "thumbnail_candidates"):
         if json_field in fields:
             fields[f"{json_field}_json"] = json.dumps(fields.pop(json_field))
     if "made_for_kids" in fields and isinstance(fields["made_for_kids"], bool):
@@ -386,13 +398,16 @@ def archive_current_version(video_id: str) -> int | None:
 
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO video_versions (id, video_id, version, output_path, thumbnail_path, title, profile_name, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO video_versions "
+            "(id, video_id, version, output_path, thumbnail_path, title, description, tags_json, profile_name, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 new_id(), video_id, old_version,
                 str(archived_output) if archived_output else None,
                 str(archived_thumb) if archived_thumb else None,
                 row.get("title"),
+                row.get("description"),
+                json.dumps(row.get("tags") or []),
                 row.get("variant_label"),
                 time.time(),
             ),
@@ -406,7 +421,13 @@ def list_versions(video_id: str) -> list[dict[str, Any]]:
         rows = conn.execute(
             "SELECT * FROM video_versions WHERE video_id = ? ORDER BY version DESC", (video_id,)
         ).fetchall()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
+            d["tags"] = json.loads(d.get("tags_json") or "[]")
+        result.append(d)
+    return result
 
 
 def delete_version(video_id: str, version_row_id: str) -> bool:

@@ -59,6 +59,30 @@ def test_archived_version_captures_the_variant_profile_that_produced_it(tmp_path
     assert versions[0]["profile_name"] == "sakin muzikli, yuz takipli"
 
 
+def test_archived_version_captures_description_and_tags_for_direct_upload(tmp_path, monkeypatch):
+    # Needed so a specific archived version can be uploaded on its own
+    # (see app.youtube.upload.upload_video's version_row_id path) without
+    # falling back to whatever the *current* live video's metadata says.
+    _fresh_db(tmp_path, monkeypatch)
+    from app import config
+    monkeypatch.setattr(config, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(config, "THUMBNAIL_DIR", tmp_path)
+
+    v = db.create_video(drive_file_id="f", source_filename="f.mp4")
+    out1 = tmp_path / "f_out.mp4"
+    out1.write_bytes(b"data")
+    db.update_video(
+        v["id"], output_path=str(out1),
+        title="Bir Başlık", description="Bir açıklama", tags=["etiket1", "etiket2"],
+    )
+
+    db.archive_current_version(v["id"])
+
+    versions = db.list_versions(v["id"])
+    assert versions[0]["description"] == "Bir açıklama"
+    assert versions[0]["tags"] == ["etiket1", "etiket2"]
+
+
 def test_delete_version_removes_row_and_file(tmp_path, monkeypatch):
     _fresh_db(tmp_path, monkeypatch)
     from app import config

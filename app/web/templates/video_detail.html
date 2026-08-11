@@ -35,6 +35,26 @@
     <h3>Etiketler</h3>
     <p>{{ (video.tags or []) | join(", ") }}</p>
 
+    {% if video.thumbnail_candidates %}
+    <h3>Kapak Fotoğrafı Seç</h3>
+    <p class="hint">Bir kapak fotoğrafı seç — hangi versiyonu onaylayıp yüklersen yükle, seçtiğin kapak o yüklemede kullanılır.</p>
+    <div class="thumb-grid">
+      {% for c in video.thumbnail_candidates %}
+      <div class="thumb-candidate{% if video.selected_thumbnail_path == c %} selected{% endif %}">
+        <img src="/video/{{ video.id }}/thumbnail/candidate/{{ loop.index0 }}" alt="Kapak adayı {{ loop.index }}">
+        <form action="/video/{{ video.id }}/thumbnail/select" method="post">
+          <input type="hidden" name="index" value="{{ loop.index0 }}">
+          {% if video.selected_thumbnail_path == c %}
+          <span class="thumb-candidate-badge">✅ Seçili</span>
+          {% else %}
+          <button type="submit" class="thumb-candidate-btn">Bunu Seç</button>
+          {% endif %}
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if versions %}
     <h3>Önceki Versiyonlar</h3>
     <div class="version-list">
@@ -47,10 +67,18 @@
         {% else %}
         <span class="empty">dosya yok</span>
         {% endif %}
-        <form action="/video/{{ video.id }}/version/{{ v.id }}/delete" method="post"
-              onsubmit="return confirm('Bu versiyonu kalıcı olarak silmek istediğine emin misin?');">
-          <button type="submit" class="delete-btn small">🗑 Bu versiyonu sil</button>
-        </form>
+        <div class="version-actions">
+          {% if v.output_path %}
+          <form action="/video/{{ video.id }}/version/{{ v.id }}/approve" method="post"
+                onsubmit="return confirm('V{{ v.version }} - {{ v.profile_name or \'\' }} sürümünü onaylayıp YouTube\'a yüklemek istediğine emin misin?');">
+            <button type="submit" class="approve-btn small">✅ Bu versiyonu onayla ve yükle</button>
+          </form>
+          {% endif %}
+          <form action="/video/{{ video.id }}/version/{{ v.id }}/delete" method="post"
+                onsubmit="return confirm('Bu versiyonu kalıcı olarak silmek istediğine emin misin?');">
+            <button type="submit" class="delete-btn small">🗑 Bu versiyonu sil</button>
+          </form>
+        </div>
       </div>
       {% endfor %}
     </div>

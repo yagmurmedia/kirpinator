@@ -161,6 +161,40 @@ def approve_and_upload(video_id: str):
     return RedirectResponse(f"/video/{video_id}", status_code=303)
 
 
+# A video can carry a dozen+ archived variant edits (see the variant-queue
+# batch feature) — the reviewer needs to pick and upload whichever one is
+# actually best, not just whatever happened to render last. Blocked only
+# while the video is actively mid-pipeline (downloading/processing/queued/
+# uploading), since files could be moving under us; otherwise allowed even
+# if a different version was already uploaded, since re-uploading a better
+# take is exactly the point.
+_BUSY_STATUSES = {"discovered", "queued", "downloading", "processing", "uploading"}
+
+
+@app.post("/video/{video_id}/version/{version_row_id}/approve")
+def approve_and_upload_version(video_id: str, version_row_id: str):
+    video = db.get_video(video_id)
+    if not video or video["status"] in _BUSY_STATUSES:
+        return RedirectResponse(f"/video/{video_id}", status_code=303)
+    versions = db.list_versions(video_id)
+    if not any(v["id"] == version_row_id for v in versions):
+        return RedirectResponse(f"/video/{video_id}", status_code=303)
+
+    db.set_status(video_id, "approved")
+    db.log_event(video_id, "ui", "Approved specific version by user — starting upload")
+
+    def _run():
+        from app.youtube.upload import upload_video
+
+        try:
+            upload_video(video_id, version_row_id=version_row_id)
+        except Exception:
+            logger.exception("Upload failed for %s (version %s)", video_id, version_row_id)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return RedirectResponse(f"/video/{video_id}", status_code=303)
+
+
 @app.post("/video/{video_id}/reprocess")
 def reprocess(video_id: str):
     db.set_status(video_id, "queued")
@@ -237,6 +271,25 @@ def thumbnail(video_id: str):
     if not video or not video.get("thumbnail_path") or not Path(video["thumbnail_path"]).exists():
         return HTMLResponse(status_code=404)
     return FileResponse(video["thumbnail_path"], media_type="image/jpeg")
+
+
+@app.get("/video/{video_id}/thumbnail/candidate/{index}")
+def thumbnail_candidate(video_id: str, index: int):
+    video = db.get_video(video_id)
+    candidates = (video or {}).get("thumbnail_candidates") or []
+    if not video or index < 0 or index >= len(candidates) or not Path(candidates[index]).exists():
+        return HTMLResponse(status_code=404)
+    return FileResponse(candidates[index], media_type="image/jpeg")
+
+
+@app.post("/video/{video_id}/thumbnail/select")
+def select_thumbnail(video_id: str, index: int = Form(...)):
+    video = db.get_video(video_id)
+    candidates = (video or {}).get("thumbnail_candidates") or []
+    if video and 0 <= index < len(candidates):
+        db.update_video(video_id, selected_thumbnail_path=candidates[index])
+        db.log_event(video_id, "ui", f"Kapak fotoğrafı seçildi (aday #{index + 1})")
+    return RedirectResponse(f"/video/{video_id}", status_code=303)
 
 
 @app.get("/settings", response_class=HTMLResponse)

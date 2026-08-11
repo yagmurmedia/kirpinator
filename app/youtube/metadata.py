@@ -54,11 +54,15 @@ Kurallar:
 - Başlık Türkçe olsun, en fazla 80 karakter, videonun gerçekte ne hakkında olduğunu \
 yansıtsın. "Yağmur X ile oynuyor" gibi jenerik kalıp cümleler KULLANMA — transkriptten \
 gerçek bir detay/an yakala ve onu başlığa yansıt. Doğal bir YouTuber gibi yaz, \
-yapay zeka şablonu gibi durmasın.
+yapay zeka şablonu gibi durmasın. Merak uyandıran, tıklatan bir başlık üretmekten \
+çekinme (ör. bir soru, bir sürpriz an, "sonunda..." gibi bir gerilim) — ama videoda \
+GERÇEKTEN olmayan bir şeyi asla iddia etme, abartı yalan olmasın.
 - Açıklama 2-4 cümle, samimi bir dille videonun gerçekte ne hakkında olduğunu anlatsın.
-- 10-15 etiket ver, videonun gerçek içeriğiyle alakalı olsun (jenerik "kids video" gibi \
-birkaç tane olabilir ama çoğu videoya özgü olmalı).
-- Aile/çocuk içeriği — uygun, güvenli, sıcak bir dil kullan, asla abartılı/clickbait olma.
+- 12-18 etiket ver: çoğu videonun gerçek içeriğine özgü olsun, ayrıca YouTube Shorts \
+algoritmasında öne çıkan birkaç genel/trend etiket de ekle (ör. "shorts", "keşfet", \
+"viral", "trend", "kesfet", "fyp" gibi — Türkçe kısa video içeriğinde yaygın olanlardan \
+uygun olanları seç, hepsini zorla eklemene gerek yok).
+- Aile/çocuk içeriği — uygun, güvenli, sıcak bir dil kullan, gerçek dışı iddialarda bulunma.
 
 SADECE şu JSON şemasını üret: {"title": "...", "description": "...", "tags": ["...", ...]}
 """
