@@ -114,6 +114,7 @@ def render_cut(source_path: str, ranges: list[KeepRange], output_path: str) -> s
             "-to", f"{r.end:.3f}",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
             "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart",
             output_path,
         ]
         subprocess.run(cmd, check=True, capture_output=True)
@@ -131,6 +132,7 @@ def render_cut(source_path: str, ranges: list[KeepRange], output_path: str) -> s
         "-map", v_label, "-map", a_label,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
         output_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)

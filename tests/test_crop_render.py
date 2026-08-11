@@ -42,6 +42,35 @@ def test_render_crop_applies_color_grade_in_a_single_pass(tmp_path):
     assert "240" in probe.stdout and "180" in probe.stdout
 
 
+@pytest.mark.skipif(not _has_ffmpeg(), reason="ffmpeg not available")
+def test_render_crop_output_is_faststart_moov_before_mdat(tmp_path):
+    # Real bug, reported live: videos froze/wouldn't load in the browser
+    # player. Root cause — no video-writing ffmpeg call anywhere in the
+    # pipeline set -movflags +faststart, so every MP4's moov atom (the
+    # index a browser needs before it can start/seek playback) sat at the
+    # very end of the file instead of the front, forcing a near-full
+    # download before playback could begin. This checks the actual bytes,
+    # not just that the flag string is somewhere in a command list.
+    src = tmp_path / "src.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=25",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)],
+        check=True, capture_output=True,
+    )
+    out = tmp_path / "out.mp4"
+    keyframes = [
+        CropKeyframe(t=0.0, x=0, y=0, w=320, h=240),
+        CropKeyframe(t=2.0, x=0, y=0, w=320, h=240),
+    ]
+    render_crop(str(src), str(out), keyframes, 240, 180, work_dir=str(tmp_path))
+
+    data = out.read_bytes()
+    moov_pos = data.find(b"moov")
+    mdat_pos = data.find(b"mdat")
+    assert moov_pos != -1 and mdat_pos != -1
+    assert moov_pos < mdat_pos
+
+
 def test_color_grade_is_a_constant_lift_not_a_flash():
     # Documents intent: no enable='between(t,...)' gating — the whole point
     # is it applies to every frame uniformly, unlike the removed per-highlight

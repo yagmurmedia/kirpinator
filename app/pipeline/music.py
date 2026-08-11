@@ -86,6 +86,7 @@ def mix_music(
         "-c:v", "copy",
         "-c:a", "aac", "-b:a", "192k",
         "-shortest",
+        "-movflags", "+faststart",
         output_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)

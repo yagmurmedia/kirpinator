@@ -107,6 +107,7 @@ def burn_captions(video_path: str, ass_path: str, output_path: str) -> str:
         "-vf", f"subtitles=filename='{ass_ff_path}'",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-c:a", "copy",
+        "-movflags", "+faststart",
         output_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)

@@ -40,7 +40,7 @@ def apply_transition_sounds(video_path: str, output_path: str, transition_times:
     cutter.crossfade_transition_times) — the whoosh is centered on each cut.
     """
     if not transition_times:
-        cmd = ["ffmpeg", "-y", "-i", video_path, "-c", "copy", output_path]
+        cmd = ["ffmpeg", "-y", "-i", video_path, "-c", "copy", "-movflags", "+faststart", output_path]
         subprocess.run(cmd, check=True, capture_output=True)
         return output_path
 
@@ -66,6 +66,7 @@ def apply_transition_sounds(video_path: str, output_path: str, transition_times:
         "-map", "0:v", "-map", "[aout]",
         "-c:v", "copy",
         "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
         output_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)

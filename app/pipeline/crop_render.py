@@ -66,6 +66,7 @@ def render_crop(
         "-filter:v", filter_complex,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-c:a", "copy",
+        "-movflags", "+faststart",
         output_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)
