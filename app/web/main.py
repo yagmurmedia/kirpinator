@@ -140,10 +140,21 @@ def update_video(
     return RedirectResponse(f"/video/{video_id}", status_code=303)
 
 
+# A video can carry a dozen+ archived variant edits (see the variant-queue
+# batch feature) — the reviewer needs to pick and upload whichever one is
+# actually best, not just whatever happened to render last. Blocked only
+# while the video is actively mid-pipeline (downloading/processing/queued/
+# uploading), since files could be moving under us; otherwise allowed even
+# if this video (or a different version of it) was already uploaded once —
+# e.g. a prior upload went out under a wrong/misconfigured YouTube account
+# and needs to be redone against the correct channel.
+_BUSY_STATUSES = {"discovered", "queued", "downloading", "processing", "uploading"}
+
+
 @app.post("/video/{video_id}/approve")
 def approve_and_upload(video_id: str):
     video = db.get_video(video_id)
-    if not video or video["status"] != "ready_for_review":
+    if not video or video["status"] in _BUSY_STATUSES:
         return RedirectResponse(f"/video/{video_id}", status_code=303)
 
     db.set_status(video_id, "approved")
@@ -159,16 +170,6 @@ def approve_and_upload(video_id: str):
 
     threading.Thread(target=_run, daemon=True).start()
     return RedirectResponse(f"/video/{video_id}", status_code=303)
-
-
-# A video can carry a dozen+ archived variant edits (see the variant-queue
-# batch feature) — the reviewer needs to pick and upload whichever one is
-# actually best, not just whatever happened to render last. Blocked only
-# while the video is actively mid-pipeline (downloading/processing/queued/
-# uploading), since files could be moving under us; otherwise allowed even
-# if a different version was already uploaded, since re-uploading a better
-# take is exactly the point.
-_BUSY_STATUSES = {"discovered", "queued", "downloading", "processing", "uploading"}
 
 
 @app.post("/video/{video_id}/version/{version_row_id}/approve")

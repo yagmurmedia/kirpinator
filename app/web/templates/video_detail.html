@@ -28,6 +28,12 @@
       Yüklendi: <a href="https://youtube.com/shorts/{{ video.youtube_video_id }}" target="_blank">
       youtube.com/shorts/{{ video.youtube_video_id }}</a>
     </p>
+    {% if video.output_path %}
+    <form action="/video/{{ video.id }}/approve" method="post" class="approve-form"
+          onsubmit="return confirm('Bu, videoyu doğru YouTube kanalına TEKRAR yükleyecek (önceki yükleme yanlış hesaba gitmiş olabilir). Devam edilsin mi?');">
+      <button type="submit" class="approve-btn">🔁 Tekrar Yükle (doğru kanala)</button>
+    </form>
+    {% endif %}
     {% endif %}
 
     <h3>Üretilen Açıklama</h3>
