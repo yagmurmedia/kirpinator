@@ -23,7 +23,7 @@ LIST_FIELDS = "files(id, name, mimeType, size, createdTime, videoMediaMetadata)"
 
 
 def _drive_service():
-    creds = get_credentials()
+    creds = get_credentials("drive")
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 

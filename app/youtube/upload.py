@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def _youtube_service():
-    creds = get_credentials()
+    creds = get_credentials("youtube")
     return build("youtube", "v3", credentials=creds, cache_discovery=False)
 
 

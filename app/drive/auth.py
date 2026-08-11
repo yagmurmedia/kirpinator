@@ -1,9 +1,19 @@
-"""Google OAuth (installed-app flow) shared by Drive and YouTube.
+"""Google OAuth (installed-app flow) for Drive and YouTube — kept as two
+independent credentials, not one shared token.
 
-One-time human step: the first call to get_credentials() opens a browser window
-for the user to sign in and grant consent. The resulting token is cached to
-settings.google_token_file and silently refreshed after that — no further
-browser interaction is needed.
+Real-world reason this matters: the source-footage Drive folder and the
+"Yağmurun Oyun Bahçesi" YouTube channel turned out to belong to two
+different Google accounts. A single combined-scope token can only ever be
+signed in as one of them — authorizing it against the YouTube account broke
+Drive access to the source folder, and vice versa. So each purpose gets its
+own scope set and its own cached token file
+(google_token_drive.json / google_token_youtube.json), authorized
+separately and refreshed independently.
+
+One-time human step per purpose: the first call to get_credentials(purpose)
+for that purpose opens a browser window for sign-in/consent. After that the
+token is cached and silently refreshed — no further browser interaction
+needed for that purpose.
 """
 from __future__ import annotations
 
@@ -18,26 +28,34 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Single combined scope set: read-only Drive access to pull source footage,
-# plus YouTube upload access to publish the finished Shorts.
-SCOPES = [
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/youtube.upload",
-    "https://www.googleapis.com/auth/youtube.readonly",
-]
+SCOPES: dict[str, list[str]] = {
+    "drive": ["https://www.googleapis.com/auth/drive.readonly"],
+    "youtube": [
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.readonly",
+    ],
+}
 
 
 class MissingClientSecretError(RuntimeError):
     pass
 
 
-def get_credentials() -> Credentials:
-    token_path = Path(settings.google_token_file)
+def _token_path(purpose: str) -> Path:
+    base = Path(settings.google_token_file)
+    return base.with_name(f"{base.stem}_{purpose}{base.suffix}")
+
+
+def get_credentials(purpose: str) -> Credentials:
+    if purpose not in SCOPES:
+        raise ValueError(f"Unknown auth purpose {purpose!r}, expected one of {list(SCOPES)}")
+    scopes = SCOPES[purpose]
+    token_path = _token_path(purpose)
     client_secret_path = Path(settings.google_oauth_client_secret_file)
 
     creds: Credentials | None = None
     if token_path.exists():
-        creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+        creds = Credentials.from_authorized_user_file(str(token_path), scopes)
 
     if creds and creds.valid:
         return creds
@@ -48,7 +66,7 @@ def get_credentials() -> Credentials:
             token_path.write_text(creds.to_json(), encoding="utf-8")
             return creds
         except Exception:
-            logger.warning("Token refresh failed, falling back to interactive auth.")
+            logger.warning("Token refresh failed for %s, falling back to interactive auth.", purpose)
 
     if not client_secret_path.exists():
         raise MissingClientSecretError(
@@ -58,8 +76,8 @@ def get_credentials() -> Credentials:
             "and save it there, then restart."
         )
 
-    logger.info("Opening a browser window for one-time Google account authorization...")
-    flow = InstalledAppFlow.from_client_secrets_file(str(client_secret_path), SCOPES)
+    logger.info("Opening a browser window for one-time Google account authorization (%s)...", purpose)
+    flow = InstalledAppFlow.from_client_secrets_file(str(client_secret_path), scopes)
     creds = flow.run_local_server(port=0)
     token_path.write_text(creds.to_json(), encoding="utf-8")
     return creds
