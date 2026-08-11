@@ -30,6 +30,7 @@ from app.pipeline import (
     segment_planner,
     silence,
     transcribe as transcribe_mod,
+    transition_sfx,
 )
 from app.pipeline.instructions import apply_instructions
 from app.pipeline.time_map import build_time_mapper
@@ -160,6 +161,16 @@ def process_video(video_id: str) -> None:
             video_id, "cut",
             f"Rendered sentence-safe cut ({'crossfade' if crossfade_s else 'hard cut'} transitions)",
         )
+
+        # A synthesized transition "whoosh" on every crossfade cut — audio
+        # only (-c:v copy), no extra video re-encode generation. Skipped
+        # entirely when there are no crossfades (single range / hard cuts).
+        transition_times = cutter.crossfade_transition_times(keep_ranges) if crossfade_s else []
+        if transition_times:
+            whoosh_path = str(work_dir / "01b_whoosh.mp4")
+            transition_sfx.apply_transition_sounds(cut_path, whoosh_path, transition_times)
+            cut_path = whoosh_path
+            db.log_event(video_id, "cut", f"Added transition whoosh at {len(transition_times)} cut(s)")
 
         # Remap transcript timestamps into the post-cut timeline for later stages.
         # Only segments that actually survived the (possibly highlight-driven,

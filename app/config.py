@@ -69,7 +69,10 @@ class Settings(BaseSettings):
 
     # --- Music ---
     pixabay_api_key: str = ""  # optional — if set, scripts/fetch_pixabay_music.py can pull more royalty-free tracks
-    music_default_volume_db: float = -18.0
+    # -18dB read as barely-there/no music in practice — raised so it's
+    # actually felt during quiet stretches; still ducks under speech via
+    # music_duck_db so it never competes with the kid's voice.
+    music_default_volume_db: float = -13.0
     music_duck_db: float = -12.0
 
     # --- Web UI ---

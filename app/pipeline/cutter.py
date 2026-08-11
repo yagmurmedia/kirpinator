@@ -46,6 +46,23 @@ def build_concat_filter(ranges: list[KeepRange]) -> tuple[str, str, str]:
     return filter_complex, "[outv]", "[outa]"
 
 
+def crossfade_transition_times(ranges: list[KeepRange]) -> list[float]:
+    """The output-timeline offset of each crossfade transition — i.e. where
+    each `xfade` in build_crossfade_filter starts blending. Exposed
+    separately (not just internal to the filter builder) so other stages —
+    e.g. a transition sound layered on top — can place themselves exactly
+    on each cut without re-deriving the same running-duration math.
+    """
+    if len(ranges) < 2:
+        return []
+    times = []
+    running_dur = ranges[0].duration
+    for i in range(1, len(ranges)):
+        times.append(running_dur - XFADE_DURATION_S)
+        running_dur = running_dur + ranges[i].duration - XFADE_DURATION_S
+    return times
+
+
 def build_crossfade_filter(ranges: list[KeepRange]) -> tuple[str, str, str]:
     """Chains xfade/acrossfade across every range boundary.
 
@@ -63,11 +80,11 @@ def build_crossfade_filter(ranges: list[KeepRange]) -> tuple[str, str, str]:
             f"[0:a]atrim=start={r.start:.3f}:end={r.end:.3f},asetpts=PTS-STARTPTS[a{i}];"
         )
 
+    offsets = crossfade_transition_times(ranges)
     running_v = "v0"
     running_a = "a0"
-    running_dur = ranges[0].duration
     for i in range(1, len(ranges)):
-        offset = running_dur - XFADE_DURATION_S
+        offset = offsets[i - 1]
         out_v = f"vx{i}"
         out_a = f"ax{i}"
         filter_parts.append(
@@ -78,7 +95,6 @@ def build_crossfade_filter(ranges: list[KeepRange]) -> tuple[str, str, str]:
             f"[{running_a}][a{i}]acrossfade=d={XFADE_DURATION_S:.3f}[{out_a}];"
         )
         running_v, running_a = out_v, out_a
-        running_dur = running_dur + ranges[i].duration - XFADE_DURATION_S
 
     filter_complex = "".join(filter_parts)
     return filter_complex, f"[{running_v}]", f"[{running_a}]"

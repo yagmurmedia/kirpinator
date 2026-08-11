@@ -4,6 +4,13 @@ the target aspect ratio, then scales/pads to the exact output resolution.
 Implemented with ffmpeg's sendcmd filter, which lets us change a named filter's
 parameters (crop x/y) at specific timestamps — the standard ffmpeg technique
 for keyframed, non-uniform crop panning without external tools.
+
+Also applies a permanent, subtle color grade here (same pass, no extra
+re-encode generation) — direct feedback that raw phone footage read as
+unedited/amateur next to "professional YouTuber" content. Deliberately not
+a per-highlight flash (that whole category was tried and explicitly
+rejected as gimmicky) — a small, constant lift applied to every frame reads
+as an editor's color pass, not an effect the viewer consciously notices.
 """
 from __future__ import annotations
 
@@ -11,6 +18,12 @@ import subprocess
 from pathlib import Path
 
 from app.models import CropKeyframe
+
+# A small, constant grade — noticeably more vivid/contrasty than flat phone
+# footage but not a stylized/garish look. Tuned to read as "produced", not
+# as an effect: contrast and saturation lifted modestly, a touch of gamma to
+# keep shadows from crushing under the extra contrast.
+COLOR_GRADE = "eq=contrast=1.08:saturation=1.18:brightness=0.015:gamma=1.03"
 
 
 def _build_sendcmd_script(keyframes: list[CropKeyframe]) -> str:
@@ -43,7 +56,8 @@ def render_crop(
         f"sendcmd=f='{cmds_ff_path}',"
         f"crop@panner=w={w0}:h={h0}:x={keyframes[0].x}:y={keyframes[0].y},"
         f"scale={output_w}:{output_h}:flags=lanczos,"
-        f"setsar=1"
+        f"setsar=1,"
+        f"{COLOR_GRADE}"
     )
 
     cmd = [

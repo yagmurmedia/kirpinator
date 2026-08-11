@@ -1,3 +1,5 @@
+import pytest
+
 from app.models import KeepRange
 from app.pipeline.cutter import (
     MIN_RANGE_FOR_XFADE_S,
@@ -5,6 +7,7 @@ from app.pipeline.cutter import (
     build_concat_filter,
     build_crossfade_filter,
     can_crossfade,
+    crossfade_transition_times,
 )
 
 
@@ -47,3 +50,20 @@ def test_concat_filter_still_available_as_fallback():
     assert "concat=n=2:v=1:a=1" in filter_complex
     assert v_label == "[outv]"
     assert a_label == "[outa]"
+
+
+def test_crossfade_transition_times_matches_filter_offsets():
+    # Used to place a transition sound exactly on each cut — must stay in
+    # lockstep with build_crossfade_filter's own offset math or the sound
+    # lands off the actual visual transition.
+    ranges = [
+        KeepRange(start=0.0, end=10.0),
+        KeepRange(start=20.0, end=28.0),
+        KeepRange(start=40.0, end=45.0),
+    ]
+    times = crossfade_transition_times(ranges)
+    assert times == pytest.approx([9.65, 17.3])
+
+
+def test_crossfade_transition_times_empty_for_single_range():
+    assert crossfade_transition_times([KeepRange(start=0.0, end=10.0)]) == []
