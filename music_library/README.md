@@ -2,7 +2,7 @@
 
 Bu klasör, videolara otomatik eklenecek telif sorunu olmayan müzikleri barındırır.
 
-**Şu an 32 parça hazır** (her mod için 8): `scripts/build_music_library.py` ile
+**Şu an 80 parça hazır** (her mod için 20): `scripts/build_music_library.py` ile
 [Incompetech](https://incompetech.com/music/royalty-free/) (Kevin MacLeod)
 katalogundan, korku/karanlık/hüzünlü temalar hariç tutularak, çocuk kanalına
 uygun şekilde otomatik seçilip indirildi. Tamamı **CC BY 4.0** (atıfla serbest

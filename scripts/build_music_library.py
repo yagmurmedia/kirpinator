@@ -45,7 +45,7 @@ MOOD_FEEL_KEYWORDS = {
     "calm": ["calm", "calming", "relaxed", "gentle", "soft", "peaceful", "serene"],
 }
 
-TARGET_PER_MOOD = 8
+TARGET_PER_MOOD = 20
 MAX_LENGTH_SECONDS = 4 * 60  # skip anything longer than 4 minutes (faster downloads, easy looping)
 
 
