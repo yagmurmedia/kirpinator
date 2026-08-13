@@ -1,10 +1,14 @@
 {% extends "base.html" %}
-{% block title %}V{{ video.version or 1 }} — {{ video.title or video.source_filename }} — Kirpinator{% endblock %}
+{% block title %}{% if video.output_path %}V{{ video.version or 1 }} — {% endif %}{{ video.title or video.source_filename }} — Kirpinator{% endblock %}
 {% block content %}
 <a href="/" class="back">&larr; Panele dön</a>
-<h1>V{{ video.version or 1 }} - {{ video.title or video.source_filename }}{% if display_number %} <span class="video-id-tag">#{{ display_number }}</span>{% endif %}</h1>
+<h1>{% if video.output_path %}V{{ video.version or 1 }} - {% endif %}{{ video.title or video.source_filename }}{% if display_number %} <span class="video-id-tag">#{{ display_number }}</span>{% endif %}</h1>
 <span class="badge badge-lg status-{{ video.status }}">{{ video.status }}</span>
+{% if video.output_path %}
 <span class="badge badge-lg version-badge">V{{ video.version or 1 }}{% if video.variant_label %} — {{ video.variant_label }}{% endif %}</span>
+{% else %}
+<span class="badge badge-lg version-badge">Henüz işlenmedi</span>
+{% endif %}
 
 <div class="detail-grid">
   <div class="preview-col">
